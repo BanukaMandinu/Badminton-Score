@@ -175,6 +175,18 @@ export async function getSessionTeamIds(db: D1Database, sessionId: number): Prom
   return rows.results.map((r) => r.team_id);
 }
 
+/** Deletes a session and everything scoped to it (schedule, matches, team
+ * roster for that session) — teams themselves are untouched, since they're
+ * shared across sessions. */
+export async function deleteSession(db: D1Database, sessionId: number): Promise<void> {
+  await db.batch([
+    db.prepare('DELETE FROM schedule_slots WHERE session_id = ?').bind(sessionId),
+    db.prepare('DELETE FROM matches WHERE session_id = ?').bind(sessionId),
+    db.prepare('DELETE FROM session_teams WHERE session_id = ?').bind(sessionId),
+    db.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId),
+  ]);
+}
+
 export async function listScheduleSlots(db: D1Database, sessionId: number): Promise<ScheduleSlotRow[]> {
   const rows = await db
     .prepare(

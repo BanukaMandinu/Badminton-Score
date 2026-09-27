@@ -4,6 +4,7 @@ import {
   createSessionWithSchedule,
   createTeam,
   declareWinner,
+  deleteSession,
   deleteTeam,
   extendSessionSchedule,
   getFinalSlotForSession,
@@ -103,6 +104,12 @@ app.get('/sessions/:id/leaderboard', async (c) => {
     getFinalSlotForSession(c.env.DB, sessionId),
   ]);
   return c.json({ standings, finalSlot });
+});
+
+app.delete('/sessions/:id', async (c) => {
+  const sessionId = Number(c.req.param('id'));
+  await deleteSession(c.env.DB, sessionId);
+  return c.json({ ok: true });
 });
 
 app.post('/sessions/:id/extend', async (c) => {

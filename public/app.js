@@ -326,6 +326,7 @@ function renderSchedule() {
     <div class="stack" style="margin-top:16px">
       <button class="btn btn-secondary btn-block" id="extend-btn">Extend schedule</button>
       <button class="btn btn-secondary btn-block" id="new-session-btn">+ New session</button>
+      <button class="btn btn-danger btn-block" id="delete-session-btn">Delete session</button>
     </div>
   `;
 
@@ -342,6 +343,11 @@ function renderSchedule() {
     }
   });
   container.querySelector('#new-session-btn').addEventListener('click', openNewSessionForm);
+  container.querySelector('#delete-session-btn').addEventListener('click', async () => {
+    if (!confirm(`Delete "${session.name}"? This removes its schedule, matches, and scores. Teams are kept.`)) return;
+    await api(`/sessions/${session.id}`, { method: 'DELETE' });
+    await loadSchedule();
+  });
 }
 
 function statusBadge(status) {
