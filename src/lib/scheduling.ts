@@ -87,11 +87,14 @@ export function fullRoundRobinRoundCount(teamCount: number): number {
 }
 
 /**
- * `maxRounds` caps how many round-robin rounds are scheduled up front
- * (asked at session creation) — e.g. running only 3 rounds instead of a
- * full round-robin, before a Final gets added once those rounds finish.
- * Omit it (or pass a number >= the full round-robin length) for the
- * previous unrestricted behavior.
+ * `maxRounds` sets how many rounds are scheduled up front (asked at
+ * session creation). A single round-robin cycle only has
+ * `fullRoundRobinRoundCount(teamIds.length)` distinct rounds — asking for
+ * more than that repeats the same cycle from the start as many times as
+ * needed to reach the requested count, exactly like tapping "Extend
+ * schedule" that many times up front. Asking for fewer trims the cycle
+ * short, and a Final gets added once those finish. Omit `maxRounds` for
+ * exactly one full round-robin cycle.
  */
 export function generateInitialSchedule(
   teamIds: number[],
@@ -99,8 +102,13 @@ export function generateInitialSchedule(
   slotMinutes: number,
   maxRounds?: number,
 ): SlotDraft[] {
-  let rounds = roundRobinRounds(teamIds);
-  if (typeof maxRounds === 'number' && maxRounds > 0) rounds = rounds.slice(0, maxRounds);
+  const cycle = roundRobinRounds(teamIds);
+  let rounds = cycle;
+  if (typeof maxRounds === 'number' && maxRounds > 0 && cycle.length > 0) {
+    rounds = [];
+    while (rounds.length < maxRounds) rounds = rounds.concat(cycle);
+    rounds = rounds.slice(0, maxRounds);
+  }
   const { slots } = layoutRounds(rounds, courtCount, slotMinutes, 1, 0, false, 0);
   return slots;
 }

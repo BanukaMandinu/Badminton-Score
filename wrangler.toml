@@ -1,6 +1,10 @@
 name = "badminton-score"
-pages_build_output_dir = "public"
+main = "src/index.ts"
 compatibility_date = "2025-09-27"
+
+[assets]
+directory = "public"
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"

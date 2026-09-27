@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { handle } from 'hono/cloudflare-pages';
 import {
   adjustScore,
   createSessionWithSchedule,
@@ -22,8 +21,8 @@ import {
   resolveSetting,
   setMatchScoringRule,
   updateTeam,
-} from '../lib/repo';
-import type { ScoringRule } from '../lib/types';
+} from './lib/repo';
+import type { ScoringRule } from './lib/types';
 
 type Bindings = {
   DB: D1Database;
@@ -191,4 +190,4 @@ app.onError((err, c) => {
   return c.json({ error: err instanceof Error ? err.message : 'Internal error' }, 500);
 });
 
-export const onRequest = handle(app);
+export default app;

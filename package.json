@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "wrangler pages dev",
-    "deploy": "wrangler pages deploy public",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply badminton --local",
     "db:migrate:remote": "wrangler d1 migrations apply badminton --remote",
     "typecheck": "tsc --noEmit"
