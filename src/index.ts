@@ -14,6 +14,7 @@ import {
   getScheduleSlotById,
   getSessionById,
   getSessionTeamStandings,
+  listAllPlayers,
   listCompletedMatchesGroupedByWeek,
   listPlayerStats,
   listScheduleSlots,
@@ -36,6 +37,11 @@ const app = new Hono<{ Bindings: Bindings }>().basePath('/api');
 app.get('/teams', async (c) => {
   const teams = await listTeamsWithPlayers(c.env.DB);
   return c.json({ teams });
+});
+
+app.get('/players', async (c) => {
+  const [players, stats] = await Promise.all([listAllPlayers(c.env.DB), listPlayerStats(c.env.DB)]);
+  return c.json({ players, stats });
 });
 
 app.post('/teams', async (c) => {

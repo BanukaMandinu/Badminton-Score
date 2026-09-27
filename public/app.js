@@ -246,6 +246,176 @@ function openTeamForm(team) {
   });
 }
 
+// ---------- Randomize teams ----------
+
+function computeWinRate(stat) {
+  if (!stat) return 0.5;
+  const total = stat.wins + stat.losses;
+  return total > 0 ? stat.wins / total : 0.5;
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Standard "snake draft" order (0,1,2,..,2,1,0,0,1,2,...) so alternating
+// picks keep each team's total rating close, instead of just stacking the
+// strongest players on team 1.
+function snakeTeamOrder(numTeams, count) {
+  const order = [];
+  let forward = true;
+  while (order.length < count) {
+    const seq = [...Array(numTeams).keys()];
+    order.push(...(forward ? seq : seq.reverse()));
+    forward = !forward;
+  }
+  return order.slice(0, count);
+}
+
+function generateBalancedTeams(players, playersPerTeam) {
+  const numTeams = Math.max(1, Math.floor(players.length / Math.max(1, playersPerTeam)));
+  // Shuffle first so players tied on rating (including everyone with no
+  // history yet, all at 0.5) land in random order, not always the same seats.
+  const ranked = shuffleArray(players).sort((a, b) => b.rating - a.rating);
+  const order = snakeTeamOrder(numTeams, ranked.length);
+  const teams = Array.from({ length: numTeams }, () => []);
+  ranked.forEach((p, i) => teams[order[i]].push(p));
+  return teams;
+}
+
+document.getElementById('teams-randomize-btn').addEventListener('click', openRandomizeTeamsForm);
+
+async function openRandomizeTeamsForm() {
+  const { players, stats } = await api('/players');
+  if (players.length < 2) {
+    alert('Add at least 2 players (via Teams) before randomizing.');
+    return;
+  }
+  const statsByPlayer = new Map(stats.map((s) => [s.playerId, s]));
+  const pool = players.map((p) => ({ id: p.id, name: p.name, rating: computeWinRate(statsByPlayer.get(p.id)) }));
+  const selected = new Set(pool.map((p) => p.id));
+  let generatedTeams = null;
+  let lastPlayersPerTeam = 2;
+
+  showModal(() => {
+    const root = document.createElement('div');
+
+    function renderSelectStep() {
+      root.innerHTML = h`
+        <h2 style="margin-bottom:14px">Randomize teams</h2>
+        <div class="stack">
+          <label class="field"><span>Players per team</span><input type="number" min="1" id="rt-size-input" value="${lastPlayersPerTeam}" /></label>
+          <div class="field-label">Players (<span id="rt-count">${selected.size}</span> selected)</div>
+          <p class="muted small" style="margin-top:-4px">Balanced by win rate from History — new players with no record yet count as average.</p>
+          <div class="stack" id="rt-player-list"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn btn-secondary" id="rt-cancel-btn">Cancel</button>
+            <button class="btn btn-primary" id="rt-generate-btn">Generate teams</button>
+          </div>
+        </div>
+      `;
+
+      const list = root.querySelector('#rt-player-list');
+      const countLabel = root.querySelector('#rt-count');
+      list.innerHTML = pool
+        .map(
+          (p) => h`
+        <div class="card" data-pick-player="${p.id}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;padding:12px 14px;opacity:${selected.has(p.id) ? '1' : '.5'}">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0">
+            <span class="pick-mark">${selected.has(p.id) ? '☑' : '☐'}</span>
+            <strong style="overflow-wrap:anywhere">${escapeHtml(p.name)}</strong>
+          </div>
+          <span class="muted small" style="flex-shrink:0">${Math.round(p.rating * 100)}% win</span>
+        </div>`,
+        )
+        .join('');
+      list.querySelectorAll('[data-pick-player]').forEach((card) => {
+        card.addEventListener('click', () => {
+          const id = Number(card.dataset.pickPlayer);
+          if (selected.has(id)) selected.delete(id);
+          else selected.add(id);
+          countLabel.textContent = String(selected.size);
+          card.querySelector('.pick-mark').textContent = selected.has(id) ? '☑' : '☐';
+          card.style.opacity = selected.has(id) ? '1' : '.5';
+        });
+      });
+
+      root.querySelector('#rt-cancel-btn').addEventListener('click', closeModal);
+      root.querySelector('#rt-generate-btn').addEventListener('click', () => {
+        lastPlayersPerTeam = Math.max(1, Number(root.querySelector('#rt-size-input').value) || 2);
+        const chosen = pool.filter((p) => selected.has(p.id));
+        if (chosen.length < 2) {
+          alert('Select at least 2 players.');
+          return;
+        }
+        generatedTeams = generateBalancedTeams(chosen, lastPlayersPerTeam);
+        renderPreviewStep();
+      });
+    }
+
+    function renderPreviewStep() {
+      root.innerHTML = h`
+        <h2 style="margin-bottom:14px">Review teams</h2>
+        <div class="stack" id="rt-preview-list"></div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn btn-secondary" id="rt-back-btn">Back</button>
+          <button class="btn btn-secondary" id="rt-reshuffle-btn">Shuffle again</button>
+        </div>
+        <button class="btn btn-primary btn-block" id="rt-save-btn" style="margin-top:10px">Save teams</button>
+      `;
+      const list = root.querySelector('#rt-preview-list');
+      list.innerHTML = generatedTeams
+        .map(
+          (team, i) => h`
+        <div class="card">
+          <input
+            class="rt-team-name"
+            data-index="${i}"
+            value="Team ${i + 1}"
+            style="font-weight:700;font-size:15px;border:none;background:transparent;color:var(--text);padding:0;margin-bottom:8px;width:100%"
+          />
+          <div class="chip-row">
+            ${team.map((p) => `<span class="chip">${escapeHtml(p.name)}</span>`).join('')}
+          </div>
+        </div>`,
+        )
+        .join('');
+
+      root.querySelector('#rt-back-btn').addEventListener('click', renderSelectStep);
+      root.querySelector('#rt-reshuffle-btn').addEventListener('click', () => {
+        const chosen = pool.filter((p) => selected.has(p.id));
+        generatedTeams = generateBalancedTeams(chosen, lastPlayersPerTeam);
+        renderPreviewStep();
+      });
+      root.querySelector('#rt-save-btn').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        try {
+          const names = Array.from(root.querySelectorAll('.rt-team-name')).map((input) => input.value.trim());
+          for (let i = 0; i < generatedTeams.length; i++) {
+            const teamName = names[i] || `Team ${i + 1}`;
+            await api('/teams', {
+              method: 'POST',
+              body: { name: teamName, playerNames: generatedTeams[i].map((p) => p.name) },
+            });
+          }
+          closeModal();
+          await loadTeams();
+        } finally {
+          e.target.disabled = false;
+        }
+      });
+    }
+
+    renderSelectStep();
+    return root;
+  });
+}
+
 // ---------- Schedule ----------
 
 let scheduleState = { session: null, slots: [] };

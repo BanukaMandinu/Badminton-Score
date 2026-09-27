@@ -17,6 +17,11 @@ const SLOT_SELECT = `
   m.team_b_score AS match_team_b_score
 `;
 
+export async function listAllPlayers(db: D1Database): Promise<Player[]> {
+  const rows = await db.prepare('SELECT id, name, created_at FROM players ORDER BY name COLLATE NOCASE').all<Player>();
+  return rows.results;
+}
+
 export async function listTeamsWithPlayers(db: D1Database): Promise<TeamWithPlayers[]> {
   const teams = await db.prepare('SELECT id, name, created_at FROM teams ORDER BY created_at DESC').all<{
     id: number;
