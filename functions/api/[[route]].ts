@@ -71,6 +71,7 @@ app.post('/sessions', async (c) => {
     sessionDate: string;
     courtCount: number;
     slotMinutes: number;
+    useTimeSlots: boolean;
     scoringRule: ScoringRule;
     teamIds: number[];
   }>();
@@ -82,6 +83,7 @@ app.post('/sessions', async (c) => {
     sessionDate: body.sessionDate,
     courtCount: Math.max(1, body.courtCount || 1),
     slotMinutes: Math.max(5, body.slotMinutes || 15),
+    useTimeSlots: body.useTimeSlots !== false,
     scoringRule: body.scoringRule,
     teamIds: body.teamIds,
   });

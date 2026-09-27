@@ -59,6 +59,7 @@ body {
 h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
 p { margin: 0; }
 button { font-family: inherit; }
+[hidden] { display: none !important; }
 
 .app {
   max-width: 720px;

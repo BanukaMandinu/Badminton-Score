@@ -24,6 +24,7 @@ export interface SessionRow {
   session_date: string;
   court_count: number;
   slot_minutes: number;
+  use_time_slots: number;
   scoring_rule: ScoringRule;
   created_at: number;
 }

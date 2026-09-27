@@ -56,17 +56,21 @@
           </div>
           <div>
             <div class="field-label">New session defaults</div>
-            <div class="row">
-              <label class="field">
-                <span>Courts</span>
-                <input type="number" min="1" id="default-courts" />
-              </label>
-              <label class="field">
-                <span>Minutes / match</span>
-                <input type="number" min="5" id="default-minutes" />
-              </label>
+            <label class="field">
+              <span>Courts</span>
+              <input type="number" min="1" id="default-courts" />
+            </label>
+            <div class="field-label" style="margin-top:10px">Match duration</div>
+            <div class="segmented" id="default-timing-segmented">
+              <button data-timing="finish" class="segment">Play until finish</button>
+              <button data-timing="timed" class="segment">Timed</button>
             </div>
-            <div class="segmented" id="default-rule-segmented" style="margin-top:8px">
+            <label class="field" id="default-minutes-field" style="margin-top:10px">
+              <span>Minutes / match</span>
+              <input type="number" min="5" id="default-minutes" />
+            </label>
+            <div class="field-label" style="margin-top:10px">Default scoring rule</div>
+            <div class="segmented" id="default-rule-segmented">
               <button data-rule="bwf21" class="segment">BWF 21</button>
               <button data-rule="classic15" class="segment">Classic 15</button>
             </div>

@@ -49,9 +49,15 @@ function setThemePreference(pref) {
 
 function getSessionDefaults() {
   try {
-    return { courtCount: 1, slotMinutes: 15, scoringRule: 'bwf21', ...JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}') };
+    return {
+      courtCount: 1,
+      slotMinutes: 15,
+      useTimeSlots: true,
+      scoringRule: 'bwf21',
+      ...JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}'),
+    };
   } catch {
-    return { courtCount: 1, slotMinutes: 15, scoringRule: 'bwf21' };
+    return { courtCount: 1, slotMinutes: 15, useTimeSlots: true, scoringRule: 'bwf21' };
   }
 }
 
@@ -261,7 +267,7 @@ function renderSchedule() {
         <div class="card slot-card" data-slot-id="${slot.id}">
           <div>
             <div class="slot-teams">${escapeHtml(slot.team_a_name)} vs ${escapeHtml(slot.team_b_name)}</div>
-            <div class="slot-meta">Court ${slot.court_number} · ${formatOffset(session.created_at, slot.start_offset_minutes)}</div>
+            <div class="slot-meta">Court ${slot.court_number}${session.use_time_slots ? ` · ${formatOffset(session.created_at, slot.start_offset_minutes)}` : ''}</div>
           </div>
           ${statusBadge(slot.status)}
         </div>`,
@@ -271,10 +277,15 @@ function renderSchedule() {
     })
     .join('');
 
+  const metaParts = [`${session.court_count} court${session.court_count > 1 ? 's' : ''}`];
+  if (session.use_time_slots) metaParts.push(`${session.slot_minutes} min/match`);
+  else metaParts.push('play until finish');
+  metaParts.push(RULE_LABEL[session.scoring_rule]);
+
   container.innerHTML = h`
     <div style="margin-bottom:8px">
       <h1 style="margin-bottom:2px">${escapeHtml(session.name)}</h1>
-      <p class="muted small">${session.court_count} court${session.court_count > 1 ? 's' : ''} · ${session.slot_minutes} min/match · ${RULE_LABEL[session.scoring_rule]}</p>
+      <p class="muted small">${metaParts.join(' · ')}</p>
     </div>
     <div class="stack">${roundsHtml}</div>
     <div class="stack" style="margin-top:16px">
@@ -313,10 +324,13 @@ function openNewSessionForm() {
       <h2 style="margin-bottom:14px">New session</h2>
       <div class="stack">
         <label class="field"><span>Session name</span><input id="session-name-input" value="Session – ${new Date().toLocaleDateString()}" /></label>
-        <div class="row">
-          <label class="field"><span>Courts</span><input type="number" min="1" id="session-courts-input" value="${defaults.courtCount}" /></label>
-          <label class="field"><span>Minutes per match</span><input type="number" min="5" id="session-minutes-input" value="${defaults.slotMinutes}" /></label>
+        <label class="field"><span>Courts</span><input type="number" min="1" id="session-courts-input" value="${defaults.courtCount}" /></label>
+        <div class="field-label">Match duration</div>
+        <div class="segmented" id="session-timing-segmented">
+          <button class="segment" data-timing="finish">Play until finish</button>
+          <button class="segment" data-timing="timed">Timed</button>
         </div>
+        <label class="field" id="session-minutes-field"><span>Minutes per match</span><input type="number" min="5" id="session-minutes-input" value="${defaults.slotMinutes}" /></label>
         <div class="field-label">Default scoring rule</div>
         <div class="segmented" id="session-rule-segmented">
           <button class="segment" data-rule="bwf21">BWF 21</button>
@@ -342,6 +356,22 @@ function openNewSessionForm() {
       btn.addEventListener('click', () => {
         scoringRule = btn.dataset.rule;
         paintRule();
+      });
+    });
+
+    let useTimeSlots = defaults.useTimeSlots;
+    const minutesField = root.querySelector('#session-minutes-field');
+    function paintTiming() {
+      root.querySelectorAll('#session-timing-segmented .segment').forEach((btn) => {
+        btn.classList.toggle('active', (btn.dataset.timing === 'timed') === useTimeSlots);
+      });
+      minutesField.hidden = !useTimeSlots;
+    }
+    paintTiming();
+    root.querySelectorAll('#session-timing-segmented .segment').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        useTimeSlots = btn.dataset.timing === 'timed';
+        paintTiming();
       });
     });
 
@@ -382,11 +412,12 @@ function openNewSessionForm() {
           sessionDate: new Date().toISOString().slice(0, 10),
           courtCount,
           slotMinutes,
+          useTimeSlots,
           scoringRule,
           teamIds: Array.from(selected),
         },
       });
-      setSessionDefaults({ courtCount, slotMinutes, scoringRule });
+      setSessionDefaults({ courtCount, slotMinutes, useTimeSlots, scoringRule });
       closeModal();
       await loadSchedule();
     });
@@ -594,6 +625,7 @@ function initSettingsView() {
   const defaults = getSessionDefaults();
   const courtsInput = document.getElementById('default-courts');
   const minutesInput = document.getElementById('default-minutes');
+  const minutesField = document.getElementById('default-minutes-field');
   courtsInput.value = defaults.courtCount;
   minutesInput.value = defaults.slotMinutes;
 
@@ -603,6 +635,15 @@ function initSettingsView() {
     });
   }
   paintRule();
+
+  function paintTiming() {
+    const useTimeSlots = getSessionDefaults().useTimeSlots;
+    document.querySelectorAll('#default-timing-segmented .segment').forEach((btn) => {
+      btn.classList.toggle('active', (btn.dataset.timing === 'timed') === useTimeSlots);
+    });
+    minutesField.hidden = !useTimeSlots;
+  }
+  paintTiming();
 
   courtsInput.addEventListener('change', () => {
     setSessionDefaults({ ...getSessionDefaults(), courtCount: Math.max(1, Number(courtsInput.value) || 1) });
@@ -614,6 +655,12 @@ function initSettingsView() {
     btn.addEventListener('click', () => {
       setSessionDefaults({ ...getSessionDefaults(), scoringRule: btn.dataset.rule });
       paintRule();
+    });
+  });
+  document.querySelectorAll('#default-timing-segmented .segment').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setSessionDefaults({ ...getSessionDefaults(), useTimeSlots: btn.dataset.timing === 'timed' });
+      paintTiming();
     });
   });
 }

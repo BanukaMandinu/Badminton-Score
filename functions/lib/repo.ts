@@ -86,16 +86,30 @@ export interface CreateSessionInput {
   sessionDate: string;
   courtCount: number;
   slotMinutes: number;
+  useTimeSlots: boolean;
   scoringRule: ScoringRule;
   teamIds: number[];
 }
 
 export async function createSessionWithSchedule(db: D1Database, input: CreateSessionInput): Promise<number> {
+  // Matches are played until finished rather than to a clock when time
+  // slots are disabled — store a nominal 1-minute unit so the round-robin
+  // wave-chunking math still works, but the UI never surfaces it.
+  const effectiveSlotMinutes = input.useTimeSlots ? input.slotMinutes : 1;
+
   const sessionResult = await db
     .prepare(
-      'INSERT INTO sessions (name, session_date, court_count, slot_minutes, scoring_rule, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (name, session_date, court_count, slot_minutes, use_time_slots, scoring_rule, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-    .bind(input.name.trim(), input.sessionDate, input.courtCount, input.slotMinutes, input.scoringRule, Date.now())
+    .bind(
+      input.name.trim(),
+      input.sessionDate,
+      input.courtCount,
+      effectiveSlotMinutes,
+      input.useTimeSlots ? 1 : 0,
+      input.scoringRule,
+      Date.now(),
+    )
     .run();
   const sessionId = sessionResult.meta.last_row_id as number;
 
@@ -103,7 +117,7 @@ export async function createSessionWithSchedule(db: D1Database, input: CreateSes
     db.prepare('INSERT OR IGNORE INTO session_teams (session_id, team_id) VALUES (?, ?)').bind(sessionId, teamId),
   );
 
-  const slots = generateInitialSchedule(input.teamIds, input.courtCount, input.slotMinutes);
+  const slots = generateInitialSchedule(input.teamIds, input.courtCount, effectiveSlotMinutes);
   const now = Date.now();
   for (const slot of slots) {
     statements.push(

@@ -1,0 +1,1 @@
+ALTER TABLE sessions ADD COLUMN use_time_slots INTEGER NOT NULL DEFAULT 1;
