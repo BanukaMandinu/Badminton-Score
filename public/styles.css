@@ -101,7 +101,7 @@ button { font-family: inherit; }
 
 .stack { display: flex; flex-direction: column; gap: 12px; }
 .row { display: flex; gap: 12px; }
-.row > * { flex: 1; }
+.row > * { flex: 1; min-width: 0; }
 
 .card {
   background: var(--card);
@@ -125,8 +125,10 @@ button { font-family: inherit; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-block { width: 100%; }
 
-.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--subtext); font-weight: 500; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--subtext); font-weight: 500; min-width: 0; }
 .field input, .field select {
+  width: 100%;
+  min-width: 0;
   font-family: inherit;
   font-size: 15px;
   color: var(--text);
@@ -175,7 +177,8 @@ button { font-family: inherit; }
 
 .round-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--subtext); margin: 14px 0 8px; }
 .slot-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
-.slot-teams { font-weight: 700; }
+.slot-card > div:first-child { flex: 1; min-width: 0; }
+.slot-teams { font-weight: 700; overflow-wrap: anywhere; }
 .slot-meta { color: var(--subtext); font-size: 12px; margin-top: 3px; }
 .slot-winner { color: var(--success); font-size: 12px; font-weight: 700; margin-top: 4px; }
 
@@ -203,8 +206,8 @@ button { font-family: inherit; }
 .modal-close-row { display: flex; justify-content: flex-end; margin-bottom: 4px; }
 
 .scoreboard { display: flex; align-items: center; gap: 8px; margin: 20px 0; }
-.score-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.score-col .team-name { font-weight: 700; text-align: center; }
+.score-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.score-col .team-name { font-weight: 700; text-align: center; overflow-wrap: anywhere; }
 .score-col .score-num { font-family: var(--font-display); font-size: 56px; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; }
 .vs-col { width: 60px; text-align: center; color: var(--subtext); font-size: 12px; font-weight: 700; }
 .score-buttons { display: flex; gap: 10px; }
