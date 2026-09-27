@@ -9,4 +9,4 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "badminton"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "c4860c60-03c2-4421-90dc-d95bbede40fa"
