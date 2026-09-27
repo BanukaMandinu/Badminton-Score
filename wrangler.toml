@@ -1,0 +1,8 @@
+name = "badminton-score"
+pages_build_output_dir = "public"
+compatibility_date = "2025-09-27"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "badminton"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

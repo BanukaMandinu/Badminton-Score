@@ -1,0 +1,24 @@
+{
+  "name": "badminton-score",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy public",
+    "db:migrate:local": "wrangler d1 migrations apply badminton --local",
+    "db:migrate:remote": "wrangler d1 migrations apply badminton --remote",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260925.1",
+    "typescript": "~5.7.3",
+    "wrangler": "^4.20.0"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260925.1": true
+  }
+}
