@@ -81,8 +81,26 @@ function layoutRounds(
   return { slots, endOffsetMinutes: waveOffset };
 }
 
-export function generateInitialSchedule(teamIds: number[], courtCount: number, slotMinutes: number): SlotDraft[] {
-  const rounds = roundRobinRounds(teamIds);
+export function fullRoundRobinRoundCount(teamCount: number): number {
+  if (teamCount < 2) return 0;
+  return teamCount % 2 === 0 ? teamCount - 1 : teamCount;
+}
+
+/**
+ * `maxRounds` caps how many round-robin rounds are scheduled up front
+ * (asked at session creation) — e.g. running only 3 rounds instead of a
+ * full round-robin, before a Final gets added once those rounds finish.
+ * Omit it (or pass a number >= the full round-robin length) for the
+ * previous unrestricted behavior.
+ */
+export function generateInitialSchedule(
+  teamIds: number[],
+  courtCount: number,
+  slotMinutes: number,
+  maxRounds?: number,
+): SlotDraft[] {
+  let rounds = roundRobinRounds(teamIds);
+  if (typeof maxRounds === 'number' && maxRounds > 0) rounds = rounds.slice(0, maxRounds);
   const { slots } = layoutRounds(rounds, courtCount, slotMinutes, 1, 0, false, 0);
   return slots;
 }

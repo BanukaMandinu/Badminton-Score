@@ -63,17 +63,20 @@ function setThemePreference(pref) {
   applyTheme(pref);
 }
 
+const FALLBACK_DEFAULTS = {
+  courtCount: 1,
+  slotMinutes: 15,
+  useTimeSlots: true,
+  rounds: 3,
+  hasFinal: true,
+  scoringRule: 'bwf21',
+};
+
 function getSessionDefaults() {
   try {
-    return {
-      courtCount: 1,
-      slotMinutes: 15,
-      useTimeSlots: true,
-      scoringRule: 'bwf21',
-      ...JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}'),
-    };
+    return { ...FALLBACK_DEFAULTS, ...JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}') };
   } catch {
-    return { courtCount: 1, slotMinutes: 15, useTimeSlots: true, scoringRule: 'bwf21' };
+    return { ...FALLBACK_DEFAULTS };
   }
 }
 
@@ -89,7 +92,7 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 
 // ---------- Tabs ----------
 
-const views = ['teams', 'schedule', 'history', 'settings'];
+const views = ['schedule', 'leaderboard', 'teams', 'history', 'settings'];
 
 function showTab(name) {
   views.forEach((v) => {
@@ -99,6 +102,7 @@ function showTab(name) {
     btn.classList.toggle('active', btn.dataset.tab === name);
   });
   if (name === 'schedule') loadSchedule();
+  if (name === 'leaderboard') loadLeaderboard();
   if (name === 'history') loadHistory();
   if (name === 'teams') loadTeams();
 }
@@ -252,6 +256,24 @@ async function loadSchedule() {
   renderSchedule();
 }
 
+function renderSlotCard(slot, session) {
+  let winnerLine = '';
+  if (slot.status === 'completed' && slot.match_winner_team_id) {
+    const winnerName = slot.match_winner_team_id === slot.team_a_id ? slot.team_a_name : slot.team_b_name;
+    const hasScore = slot.match_team_a_score || slot.match_team_b_score;
+    winnerLine = `<div class="slot-winner">🏆 ${escapeHtml(winnerName)}${hasScore ? ` (${slot.match_team_a_score}-${slot.match_team_b_score})` : ''}</div>`;
+  }
+  return h`
+    <div class="card slot-card" data-slot-id="${slot.id}">
+      <div>
+        <div class="slot-teams">${escapeHtml(slot.team_a_name)} vs ${escapeHtml(slot.team_b_name)}</div>
+        <div class="slot-meta">Court ${slot.court_number}${session.use_time_slots ? ` · ${formatOffset(session.created_at, slot.start_offset_minutes)}` : ''}</div>
+        ${winnerLine}
+      </div>
+      ${statusBadge(slot.status)}
+    </div>`;
+}
+
 function renderSchedule() {
   const container = document.getElementById('schedule-content');
   const { session, slots } = scheduleState;
@@ -267,8 +289,11 @@ function renderSchedule() {
     return;
   }
 
+  const regularSlots = slots.filter((s) => !s.is_final);
+  const finalSlot = slots.find((s) => s.is_final);
+
   const byRound = new Map();
-  for (const slot of slots) {
+  for (const slot of regularSlots) {
     if (!byRound.has(slot.round_number)) byRound.set(slot.round_number, []);
     byRound.get(slot.round_number).push(slot);
   }
@@ -277,21 +302,14 @@ function renderSchedule() {
     .sort((a, b) => a[0] - b[0])
     .map(([round, roundSlots]) => {
       const extLabel = roundSlots[0].is_extension ? ` · Extension ${roundSlots[0].extension_number}` : '';
-      const slotsHtml = roundSlots
-        .map(
-          (slot) => h`
-        <div class="card slot-card" data-slot-id="${slot.id}">
-          <div>
-            <div class="slot-teams">${escapeHtml(slot.team_a_name)} vs ${escapeHtml(slot.team_b_name)}</div>
-            <div class="slot-meta">Court ${slot.court_number}${session.use_time_slots ? ` · ${formatOffset(session.created_at, slot.start_offset_minutes)}` : ''}</div>
-          </div>
-          ${statusBadge(slot.status)}
-        </div>`,
-        )
-        .join('');
+      const slotsHtml = roundSlots.map((slot) => renderSlotCard(slot, session)).join('');
       return `<div class="round-label">Round ${round}${extLabel}</div>${slotsHtml}`;
     })
     .join('');
+
+  const finalHtml = finalSlot
+    ? `<div class="round-label">🏆 Final</div>${renderSlotCard(finalSlot, session)}`
+    : '';
 
   const metaParts = [`${session.court_count} court${session.court_count > 1 ? 's' : ''}`];
   if (session.use_time_slots) metaParts.push(`${session.slot_minutes} min/match`);
@@ -304,6 +322,7 @@ function renderSchedule() {
       <p class="muted small">${metaParts.join(' · ')}</p>
     </div>
     <div class="stack">${roundsHtml}</div>
+    ${finalHtml}
     <div class="stack" style="margin-top:16px">
       <button class="btn btn-secondary btn-block" id="extend-btn">Extend schedule</button>
       <button class="btn btn-secondary btn-block" id="new-session-btn">+ New session</button>
@@ -344,7 +363,10 @@ function openNewSessionForm() {
       <h2 style="margin-bottom:14px">New session</h2>
       <div class="stack">
         <label class="field"><span>Session name</span><input id="session-name-input" value="Session – ${new Date().toLocaleDateString()}" /></label>
-        <label class="field"><span>Courts</span><input type="number" min="1" id="session-courts-input" value="${defaults.courtCount}" /></label>
+        <div class="row">
+          <label class="field"><span>Courts</span><input type="number" min="1" id="session-courts-input" value="${defaults.courtCount}" /></label>
+          <label class="field"><span>Rounds</span><input type="number" min="1" id="session-rounds-input" value="${defaults.rounds}" /></label>
+        </div>
         <div class="field-label">Match duration</div>
         <div class="segmented" id="session-timing-segmented">
           <button class="segment" data-timing="finish">Play until finish</button>
@@ -356,6 +378,12 @@ function openNewSessionForm() {
           <button class="segment" data-rule="bwf21">BWF 21</button>
           <button class="segment" data-rule="classic15">Classic 15</button>
         </div>
+        <div class="field-label">Final match</div>
+        <div class="segmented" id="session-final-segmented">
+          <button class="segment" data-final="yes">With final</button>
+          <button class="segment" data-final="no">Without final</button>
+        </div>
+        <p class="muted small" style="margin-top:-6px">If enabled, once all rounds finish a Final is added automatically between the top 2 teams.</p>
         <div class="field-label" style="margin-top:6px">Teams playing (<span id="team-count-label">0</span> selected)</div>
         <div class="stack" id="team-pick-list"></div>
         <div class="row" style="margin-top:8px">
@@ -395,6 +423,20 @@ function openNewSessionForm() {
       });
     });
 
+    let hasFinal = defaults.hasFinal;
+    function paintFinal() {
+      root.querySelectorAll('#session-final-segmented .segment').forEach((btn) => {
+        btn.classList.toggle('active', (btn.dataset.final === 'yes') === hasFinal);
+      });
+    }
+    paintFinal();
+    root.querySelectorAll('#session-final-segmented .segment').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        hasFinal = btn.dataset.final === 'yes';
+        paintFinal();
+      });
+    });
+
     const teamPickList = root.querySelector('#team-pick-list');
     const countLabel = root.querySelector('#team-count-label');
     if (teamsCache.length === 0) {
@@ -423,6 +465,7 @@ function openNewSessionForm() {
       }
       e.target.disabled = true;
       const courtCount = Math.max(1, Number(root.querySelector('#session-courts-input').value) || 1);
+      const rounds = Math.max(1, Number(root.querySelector('#session-rounds-input').value) || 1);
       const slotMinutes = Math.max(5, Number(root.querySelector('#session-minutes-input').value) || 5);
       const name = root.querySelector('#session-name-input').value.trim() || 'Session';
       try {
@@ -434,11 +477,13 @@ function openNewSessionForm() {
             courtCount,
             slotMinutes,
             useTimeSlots,
+            rounds,
+            hasFinal,
             scoringRule,
             teamIds: Array.from(selected),
           },
         });
-        setSessionDefaults({ courtCount, slotMinutes, useTimeSlots, scoringRule });
+        setSessionDefaults({ courtCount, slotMinutes, useTimeSlots, rounds, hasFinal, scoringRule });
         closeModal();
         await loadSchedule();
       } finally {
@@ -533,6 +578,16 @@ function paintMatch(root, match) {
          </div>`
       : ''}
 
+    ${!isComplete
+      ? `<div class="quick-winner">
+           <p class="muted small" style="text-align:center;margin-bottom:8px">Or just pick the winner</p>
+           <div class="row">
+             <button class="btn btn-secondary" id="quick-winner-a-btn">${escapeHtml(match.team_a_name)} won</button>
+             <button class="btn btn-secondary" id="quick-winner-b-btn">${escapeHtml(match.team_b_name)} won</button>
+           </div>
+         </div>`
+      : ''}
+
     ${isComplete
       ? `<div class="complete-banner">
            <div style="font-size:22px">🏆</div>
@@ -578,6 +633,19 @@ function paintMatch(root, match) {
       paintMatch(root, res.match);
     });
 
+  const quickWinnerA = root.querySelector('#quick-winner-a-btn');
+  const quickWinnerB = root.querySelector('#quick-winner-b-btn');
+  if (quickWinnerA)
+    quickWinnerA.addEventListener('click', async () => {
+      const res = await api(`/matches/${match.id}/declare-winner`, { method: 'POST', body: { winnerSide: 'a' } });
+      paintMatch(root, res.match);
+    });
+  if (quickWinnerB)
+    quickWinnerB.addEventListener('click', async () => {
+      const res = await api(`/matches/${match.id}/declare-winner`, { method: 'POST', body: { winnerSide: 'b' } });
+      paintMatch(root, res.match);
+    });
+
   const reopenBtn = root.querySelector('#reopen-btn');
   if (reopenBtn)
     reopenBtn.addEventListener('click', async () => {
@@ -591,6 +659,70 @@ function paintMatch(root, match) {
       closeModal();
       await loadSchedule();
     });
+}
+
+// ---------- Leaderboard ----------
+
+async function loadLeaderboard() {
+  const { session } = await api('/sessions/latest');
+  if (!session) {
+    renderLeaderboard(null, [], null);
+    return;
+  }
+  const { standings, finalSlot } = await api(`/sessions/${session.id}/leaderboard`);
+  renderLeaderboard(session, standings, finalSlot);
+}
+
+function renderLeaderboard(session, standings, finalSlot) {
+  const container = document.getElementById('leaderboard-content');
+  if (!session) {
+    container.innerHTML = `<p class="muted">No session yet. Create one from the Schedule tab.</p>`;
+    return;
+  }
+
+  const rowsHtml = standings
+    .map((s, i) => {
+      const isChampion = finalSlot && finalSlot.match_winner_team_id === s.team_id;
+      const isFinalist =
+        !isChampion && finalSlot && (s.team_id === finalSlot.team_a_id || s.team_id === finalSlot.team_b_id);
+      const badge = isChampion ? ' 🏆' : isFinalist ? ' 🎖️' : '';
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(s.team_name)}${badge}</td>
+        <td>${s.wins}-${s.losses}</td>
+        <td class="muted">${s.points_for}/${s.points_against}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const finalStatusText =
+    finalSlot?.status === 'completed'
+      ? `Winner: ${escapeHtml(finalSlot.match_winner_team_id === finalSlot.team_a_id ? finalSlot.team_a_name : finalSlot.team_b_name)}`
+      : finalSlot?.status === 'in_progress'
+        ? 'In progress'
+        : 'Not started yet';
+
+  const finalHtml = finalSlot
+    ? h`
+      <div class="card" style="margin-top:12px">
+        <div style="font-weight:700;margin-bottom:4px">🏆 Final</div>
+        <div>${escapeHtml(finalSlot.team_a_name)} vs ${escapeHtml(finalSlot.team_b_name)}</div>
+        <div class="muted small" style="margin-top:4px">${finalStatusText}</div>
+      </div>`
+    : session.has_final
+      ? `<p class="muted small" style="margin-top:12px">The Final will appear here once every round is finished.</p>`
+      : '';
+
+  container.innerHTML = h`
+    <h2 style="font-size:17px;margin-bottom:4px">${escapeHtml(session.name)}</h2>
+    <div class="card">
+      <table class="stats-table">
+        <tr><th>#</th><th>Team</th><th>W-L</th><th>Pts</th></tr>
+        ${rowsHtml || '<tr><td colspan="4" class="muted">No matches played yet.</td></tr>'}
+      </table>
+    </div>
+    ${finalHtml}
+  `;
 }
 
 // ---------- History ----------
@@ -648,9 +780,11 @@ function initSettingsView() {
 
   const defaults = getSessionDefaults();
   const courtsInput = document.getElementById('default-courts');
+  const roundsInput = document.getElementById('default-rounds');
   const minutesInput = document.getElementById('default-minutes');
   const minutesField = document.getElementById('default-minutes-field');
   courtsInput.value = defaults.courtCount;
+  roundsInput.value = defaults.rounds;
   minutesInput.value = defaults.slotMinutes;
 
   function paintRule() {
@@ -669,8 +803,19 @@ function initSettingsView() {
   }
   paintTiming();
 
+  function paintFinal() {
+    const hasFinal = getSessionDefaults().hasFinal;
+    document.querySelectorAll('#default-final-segmented .segment').forEach((btn) => {
+      btn.classList.toggle('active', (btn.dataset.final === 'yes') === hasFinal);
+    });
+  }
+  paintFinal();
+
   courtsInput.addEventListener('change', () => {
     setSessionDefaults({ ...getSessionDefaults(), courtCount: Math.max(1, Number(courtsInput.value) || 1) });
+  });
+  roundsInput.addEventListener('change', () => {
+    setSessionDefaults({ ...getSessionDefaults(), rounds: Math.max(1, Number(roundsInput.value) || 1) });
   });
   minutesInput.addEventListener('change', () => {
     setSessionDefaults({ ...getSessionDefaults(), slotMinutes: Math.max(5, Number(minutesInput.value) || 5) });
@@ -685,6 +830,12 @@ function initSettingsView() {
     btn.addEventListener('click', () => {
       setSessionDefaults({ ...getSessionDefaults(), useTimeSlots: btn.dataset.timing === 'timed' });
       paintTiming();
+    });
+  });
+  document.querySelectorAll('#default-final-segmented .segment').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setSessionDefaults({ ...getSessionDefaults(), hasFinal: btn.dataset.final === 'yes' });
+      paintFinal();
     });
   });
 }
@@ -722,3 +873,4 @@ function closeModal() {
 applyTheme(getThemePreference());
 initSettingsView();
 loadTeams();
+loadSchedule();

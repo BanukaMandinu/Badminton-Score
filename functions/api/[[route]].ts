@@ -4,13 +4,16 @@ import {
   adjustScore,
   createSessionWithSchedule,
   createTeam,
+  declareWinner,
   deleteTeam,
   extendSessionSchedule,
+  getFinalSlotForSession,
   getLatestSession,
   getMatch,
   getOrStartMatchForSlot,
   getScheduleSlotById,
   getSessionById,
+  getSessionTeamStandings,
   listCompletedMatchesGroupedByWeek,
   listPlayerStats,
   listScheduleSlots,
@@ -74,6 +77,8 @@ app.post('/sessions', async (c) => {
     useTimeSlots: boolean;
     scoringRule: ScoringRule;
     teamIds: number[];
+    rounds?: number;
+    hasFinal: boolean;
   }>();
   if (!body.teamIds || body.teamIds.length < 2) {
     return c.json({ error: 'At least 2 teams are required' }, 400);
@@ -86,8 +91,19 @@ app.post('/sessions', async (c) => {
     useTimeSlots: body.useTimeSlots !== false,
     scoringRule: body.scoringRule,
     teamIds: body.teamIds,
+    rounds: body.rounds && body.rounds > 0 ? body.rounds : undefined,
+    hasFinal: body.hasFinal !== false,
   });
   return c.json({ sessionId });
+});
+
+app.get('/sessions/:id/leaderboard', async (c) => {
+  const sessionId = Number(c.req.param('id'));
+  const [standings, finalSlot] = await Promise.all([
+    getSessionTeamStandings(c.env.DB, sessionId),
+    getFinalSlotForSession(c.env.DB, sessionId),
+  ]);
+  return c.json({ standings, finalSlot });
 });
 
 app.post('/sessions/:id/extend', async (c) => {
@@ -143,6 +159,13 @@ app.post('/matches/:id/rule', async (c) => {
   const body = await c.req.json<{ rule: ScoringRule }>();
   await setMatchScoringRule(c.env.DB, matchId, body.rule);
   const match = await getMatch(c.env.DB, matchId);
+  return c.json({ match });
+});
+
+app.post('/matches/:id/declare-winner', async (c) => {
+  const matchId = Number(c.req.param('id'));
+  const body = await c.req.json<{ winnerSide: 'a' | 'b' }>();
+  const match = await declareWinner(c.env.DB, matchId, body.winnerSide);
   return c.json({ match });
 });
 

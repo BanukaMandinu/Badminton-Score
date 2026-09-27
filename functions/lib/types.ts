@@ -25,6 +25,7 @@ export interface SessionRow {
   court_count: number;
   slot_minutes: number;
   use_time_slots: number;
+  has_final: number;
   scoring_rule: ScoringRule;
   created_at: number;
 }
@@ -40,11 +41,24 @@ export interface ScheduleSlotRow {
   duration_minutes: number;
   is_extension: number;
   extension_number: number;
+  is_final: number;
   match_id: number | null;
   status: SlotStatus;
   created_at: number;
   team_a_name: string;
   team_b_name: string;
+  match_winner_team_id: number | null;
+  match_team_a_score: number | null;
+  match_team_b_score: number | null;
+}
+
+export interface TeamStanding {
+  team_id: number;
+  team_name: string;
+  wins: number;
+  losses: number;
+  points_for: number;
+  points_against: number;
 }
 
 export interface MatchRow {

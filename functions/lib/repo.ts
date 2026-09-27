@@ -6,8 +6,16 @@ import type {
   ScheduleSlotRow,
   ScoringRule,
   SessionRow,
+  TeamStanding,
   TeamWithPlayers,
 } from './types';
+
+const SLOT_SELECT = `
+  s.*, ta.name AS team_a_name, tb.name AS team_b_name,
+  m.winner_team_id AS match_winner_team_id,
+  m.team_a_score AS match_team_a_score,
+  m.team_b_score AS match_team_b_score
+`;
 
 export async function listTeamsWithPlayers(db: D1Database): Promise<TeamWithPlayers[]> {
   const teams = await db.prepare('SELECT id, name, created_at FROM teams ORDER BY created_at DESC').all<{
@@ -89,6 +97,8 @@ export interface CreateSessionInput {
   useTimeSlots: boolean;
   scoringRule: ScoringRule;
   teamIds: number[];
+  rounds?: number;
+  hasFinal: boolean;
 }
 
 export async function createSessionWithSchedule(db: D1Database, input: CreateSessionInput): Promise<number> {
@@ -99,7 +109,7 @@ export async function createSessionWithSchedule(db: D1Database, input: CreateSes
 
   const sessionResult = await db
     .prepare(
-      'INSERT INTO sessions (name, session_date, court_count, slot_minutes, use_time_slots, scoring_rule, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (name, session_date, court_count, slot_minutes, use_time_slots, has_final, scoring_rule, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .bind(
       input.name.trim(),
@@ -107,6 +117,7 @@ export async function createSessionWithSchedule(db: D1Database, input: CreateSes
       input.courtCount,
       effectiveSlotMinutes,
       input.useTimeSlots ? 1 : 0,
+      input.hasFinal ? 1 : 0,
       input.scoringRule,
       Date.now(),
     )
@@ -117,7 +128,7 @@ export async function createSessionWithSchedule(db: D1Database, input: CreateSes
     db.prepare('INSERT OR IGNORE INTO session_teams (session_id, team_id) VALUES (?, ?)').bind(sessionId, teamId),
   );
 
-  const slots = generateInitialSchedule(input.teamIds, input.courtCount, effectiveSlotMinutes);
+  const slots = generateInitialSchedule(input.teamIds, input.courtCount, effectiveSlotMinutes, input.rounds);
   const now = Date.now();
   for (const slot of slots) {
     statements.push(
@@ -167,25 +178,42 @@ export async function getSessionTeamIds(db: D1Database, sessionId: number): Prom
 export async function listScheduleSlots(db: D1Database, sessionId: number): Promise<ScheduleSlotRow[]> {
   const rows = await db
     .prepare(
-      `SELECT s.*, ta.name AS team_a_name, tb.name AS team_b_name
+      `SELECT ${SLOT_SELECT}
        FROM schedule_slots s
        JOIN teams ta ON ta.id = s.team_a_id
        JOIN teams tb ON tb.id = s.team_b_id
+       LEFT JOIN matches m ON m.id = s.match_id
        WHERE s.session_id = ?
-       ORDER BY s.start_offset_minutes ASC, s.court_number ASC`,
+       ORDER BY s.is_final ASC, s.start_offset_minutes ASC, s.court_number ASC`,
     )
     .bind(sessionId)
     .all<ScheduleSlotRow>();
   return rows.results;
 }
 
-export async function getScheduleSlotById(db: D1Database, slotId: number): Promise<ScheduleSlotRow | null> {
+export async function getFinalSlotForSession(db: D1Database, sessionId: number): Promise<ScheduleSlotRow | null> {
   const row = await db
     .prepare(
-      `SELECT s.*, ta.name AS team_a_name, tb.name AS team_b_name
+      `SELECT ${SLOT_SELECT}
        FROM schedule_slots s
        JOIN teams ta ON ta.id = s.team_a_id
        JOIN teams tb ON tb.id = s.team_b_id
+       LEFT JOIN matches m ON m.id = s.match_id
+       WHERE s.session_id = ? AND s.is_final = 1`,
+    )
+    .bind(sessionId)
+    .first<ScheduleSlotRow>();
+  return row ?? null;
+}
+
+export async function getScheduleSlotById(db: D1Database, slotId: number): Promise<ScheduleSlotRow | null> {
+  const row = await db
+    .prepare(
+      `SELECT ${SLOT_SELECT}
+       FROM schedule_slots s
+       JOIN teams ta ON ta.id = s.team_a_id
+       JOIN teams tb ON tb.id = s.team_b_id
+       LEFT JOIN matches m ON m.id = s.match_id
        WHERE s.id = ?`,
     )
     .bind(slotId)
@@ -201,7 +229,7 @@ export async function extendSessionSchedule(db: D1Database, sessionId: number): 
   const last = await db
     .prepare(
       `SELECT round_number, (start_offset_minutes + duration_minutes) AS end_offset, extension_number
-       FROM schedule_slots WHERE session_id = ?
+       FROM schedule_slots WHERE session_id = ? AND is_final = 0
        ORDER BY start_offset_minutes DESC LIMIT 1`,
     )
     .bind(sessionId)
@@ -242,6 +270,9 @@ export async function extendSessionSchedule(db: D1Database, sessionId: number): 
       ),
   );
   if (statements.length) await db.batch(statements);
+  // New pending rounds mean the group stage is no longer complete — drop
+  // any not-yet-started Final so it gets re-seeded once these finish.
+  await syncFinal(db, sessionId);
 }
 
 export async function getMatch(db: D1Database, matchId: number): Promise<MatchRow | null> {
@@ -305,12 +336,29 @@ export async function adjustScore(db: D1Database, matchId: number, side: 'a' | '
         .bind(nextA, nextB, winnerTeamId, Date.now(), matchId),
       db.prepare("UPDATE schedule_slots SET status = 'completed' WHERE match_id = ?").bind(matchId),
     ]);
+    await syncFinal(db, match.session_id);
   } else {
     await db
       .prepare('UPDATE matches SET team_a_score = ?, team_b_score = ? WHERE id = ?')
       .bind(nextA, nextB, matchId)
       .run();
   }
+
+  return getMatch(db, matchId);
+}
+
+export async function declareWinner(db: D1Database, matchId: number, winnerSide: 'a' | 'b'): Promise<MatchRow | null> {
+  const match = await getMatch(db, matchId);
+  if (!match || match.status === 'completed') return match;
+
+  const winnerTeamId = winnerSide === 'a' ? match.team_a_id : match.team_b_id;
+  await db.batch([
+    db
+      .prepare(`UPDATE matches SET status = 'completed', winner_team_id = ?, completed_at = ? WHERE id = ?`)
+      .bind(winnerTeamId, Date.now(), matchId),
+    db.prepare("UPDATE schedule_slots SET status = 'completed' WHERE match_id = ?").bind(matchId),
+  ]);
+  await syncFinal(db, match.session_id);
 
   return getMatch(db, matchId);
 }
@@ -331,12 +379,149 @@ export async function setMatchScoringRule(db: D1Database, matchId: number, rule:
 }
 
 export async function reopenMatch(db: D1Database, matchId: number): Promise<void> {
+  const match = await getMatch(db, matchId);
+  if (!match) return;
   await db.batch([
     db
       .prepare("UPDATE matches SET status = 'in_progress', winner_team_id = NULL, completed_at = NULL WHERE id = ?")
       .bind(matchId),
     db.prepare("UPDATE schedule_slots SET status = 'in_progress' WHERE match_id = ?").bind(matchId),
   ]);
+  await syncFinal(db, match.session_id);
+}
+
+/**
+ * Team standings for one session: wins/losses/points aggregated from
+ * completed matches. Pass `excludeFinal: true` to get pre-Final standings
+ * (used to seed the Final itself); omit it for the session Leaderboard
+ * view, where the Final's result should count too.
+ */
+export async function getSessionTeamStandings(
+  db: D1Database,
+  sessionId: number,
+  options?: { excludeFinal?: boolean },
+): Promise<TeamStanding[]> {
+  const finalFilter = options?.excludeFinal ? 'AND s.is_final = 0' : '';
+  const rows = await db
+    .prepare(
+      `SELECT t.id AS team_id, t.name AS team_name,
+              m.team_a_id AS match_team_id, m.team_a_score AS team_score, m.team_b_score AS opponent_score,
+              m.winner_team_id AS winner_team_id
+       FROM session_teams st
+       JOIN teams t ON t.id = st.team_id
+       JOIN matches m ON m.team_a_id = st.team_id AND m.session_id = st.session_id AND m.status = 'completed'
+       JOIN schedule_slots s ON s.match_id = m.id
+       WHERE st.session_id = ? ${finalFilter}
+       UNION ALL
+       SELECT t.id AS team_id, t.name AS team_name,
+              m.team_b_id AS match_team_id, m.team_b_score AS team_score, m.team_a_score AS opponent_score,
+              m.winner_team_id AS winner_team_id
+       FROM session_teams st
+       JOIN teams t ON t.id = st.team_id
+       JOIN matches m ON m.team_b_id = st.team_id AND m.session_id = st.session_id AND m.status = 'completed'
+       JOIN schedule_slots s ON s.match_id = m.id
+       WHERE st.session_id = ? ${finalFilter}`,
+    )
+    .bind(sessionId, sessionId)
+    .all<{
+      team_id: number;
+      team_name: string;
+      team_score: number;
+      opponent_score: number;
+      winner_team_id: number | null;
+    }>();
+
+  const byTeam = new Map<number, TeamStanding>();
+  // Ensure every team in the session appears even with zero matches played.
+  const teamIds = await getSessionTeamIds(db, sessionId);
+  const teams = await db
+    .prepare(`SELECT id, name FROM teams WHERE id IN (${teamIds.map(() => '?').join(',') || 'NULL'})`)
+    .bind(...teamIds)
+    .all<{ id: number; name: string }>();
+  for (const t of teams.results) {
+    byTeam.set(t.id, { team_id: t.id, team_name: t.name, wins: 0, losses: 0, points_for: 0, points_against: 0 });
+  }
+
+  for (const row of rows.results) {
+    const standing = byTeam.get(row.team_id);
+    if (!standing) continue;
+    standing.points_for += row.team_score;
+    standing.points_against += row.opponent_score;
+    if (row.winner_team_id === row.team_id) standing.wins += 1;
+    else standing.losses += 1;
+  }
+
+  return Array.from(byTeam.values()).sort(
+    (a, b) => b.wins - a.wins || b.points_for - b.points_against - (a.points_for - a.points_against),
+  );
+}
+
+/**
+ * Creates, re-seeds, or retracts the session's Final slot based on
+ * whether every non-Final match is done and who's currently on top.
+ * A Final whose match has already started/finished is left alone even
+ * if the group stage is later reopened and standings shift.
+ */
+export async function syncFinal(db: D1Database, sessionId: number): Promise<void> {
+  const session = await getSessionById(db, sessionId);
+  if (!session || !session.has_final) return;
+
+  const nonFinalSlots = await db
+    .prepare('SELECT status FROM schedule_slots WHERE session_id = ? AND is_final = 0')
+    .bind(sessionId)
+    .all<{ status: string }>();
+  const allDone = nonFinalSlots.results.length > 0 && nonFinalSlots.results.every((s) => s.status === 'completed');
+
+  const existingFinal = await db
+    .prepare('SELECT * FROM schedule_slots WHERE session_id = ? AND is_final = 1')
+    .bind(sessionId)
+    .first<ScheduleSlotRow>();
+
+  if (!allDone) {
+    if (existingFinal && !existingFinal.match_id) {
+      await db.prepare('DELETE FROM schedule_slots WHERE id = ?').bind(existingFinal.id).run();
+    }
+    return;
+  }
+
+  // With only 2 teams the round-robin already decided it head-to-head —
+  // a Final would just be an identical rematch.
+  const standings = await getSessionTeamStandings(db, sessionId, { excludeFinal: true });
+  if (standings.length < 3) return;
+  const [first, second] = standings;
+
+  if (!existingFinal) {
+    const last = await db
+      .prepare(
+        `SELECT round_number, (start_offset_minutes + duration_minutes) AS end_offset
+         FROM schedule_slots WHERE session_id = ? AND is_final = 0
+         ORDER BY start_offset_minutes DESC LIMIT 1`,
+      )
+      .bind(sessionId)
+      .first<{ round_number: number; end_offset: number }>();
+
+    await db
+      .prepare(
+        `INSERT INTO schedule_slots
+          (session_id, round_number, court_number, team_a_id, team_b_id, start_offset_minutes, duration_minutes, is_extension, extension_number, is_final, status, created_at)
+         VALUES (?, ?, 1, ?, ?, ?, ?, 0, 0, 1, 'pending', ?)`,
+      )
+      .bind(
+        sessionId,
+        (last?.round_number ?? 0) + 1,
+        first.team_id,
+        second.team_id,
+        last?.end_offset ?? 0,
+        session.slot_minutes,
+        Date.now(),
+      )
+      .run();
+  } else if (!existingFinal.match_id) {
+    await db
+      .prepare('UPDATE schedule_slots SET team_a_id = ?, team_b_id = ? WHERE id = ?')
+      .bind(first.team_id, second.team_id, existingFinal.id)
+      .run();
+  }
 }
 
 export interface WeekGroup {

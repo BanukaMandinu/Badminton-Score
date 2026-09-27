@@ -177,6 +177,7 @@ button { font-family: inherit; }
 .slot-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
 .slot-teams { font-weight: 700; }
 .slot-meta { color: var(--subtext); font-size: 12px; margin-top: 3px; }
+.slot-winner { color: var(--success); font-size: 12px; font-weight: 700; margin-top: 4px; }
 
 /* Modal / live score overlay */
 .overlay {
@@ -226,6 +227,7 @@ button { font-family: inherit; }
 }
 .setting-banner { border: 1.5px solid var(--warning); background: var(--chip); }
 .complete-banner { background: var(--chip); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.quick-winner { padding-top: 4px; }
 
 .tabbar {
   position: sticky;
