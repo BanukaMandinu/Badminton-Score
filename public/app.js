@@ -10,17 +10,33 @@ const RULE_LABEL = {
 // ---------- API ----------
 
 async function api(path, options) {
-  const res = await fetch(`/api${path}`, {
-    method: options?.method || 'GET',
-    headers: options?.body ? { 'Content-Type': 'application/json' } : undefined,
-    body: options?.body ? JSON.stringify(options.body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: options?.method || 'GET',
+      headers: options?.body ? { 'Content-Type': 'application/json' } : undefined,
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error('Could not reach the server. Check your connection and try again.');
+  }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
+    const err = await res.json().catch(() => ({ error: `${res.status} ${res.statusText}` }));
     throw new Error(err.error || 'Request failed');
   }
   return res.json();
 }
+
+// Every button click handler in this file is an async function passed
+// straight to addEventListener; a thrown/rejected error in one would
+// otherwise vanish as an unhandled rejection with no visible feedback.
+// This is the one net that catches all of them and actually tells the
+// person something went wrong, instead of the button just doing nothing.
+window.addEventListener('unhandledrejection', (event) => {
+  console.error(event.reason);
+  alert((event.reason && event.reason.message) || 'Something went wrong. Please try again.');
+  event.preventDefault();
+});
 
 // ---------- Theme ----------
 
@@ -299,8 +315,12 @@ function renderSchedule() {
   });
   container.querySelector('#extend-btn').addEventListener('click', async (e) => {
     e.target.disabled = true;
-    await api(`/sessions/${session.id}/extend`, { method: 'POST' });
-    await loadSchedule();
+    try {
+      await api(`/sessions/${session.id}/extend`, { method: 'POST' });
+      await loadSchedule();
+    } finally {
+      e.target.disabled = false;
+    }
   });
   container.querySelector('#new-session-btn').addEventListener('click', openNewSessionForm);
 }
@@ -405,21 +425,25 @@ function openNewSessionForm() {
       const courtCount = Math.max(1, Number(root.querySelector('#session-courts-input').value) || 1);
       const slotMinutes = Math.max(5, Number(root.querySelector('#session-minutes-input').value) || 5);
       const name = root.querySelector('#session-name-input').value.trim() || 'Session';
-      await api('/sessions', {
-        method: 'POST',
-        body: {
-          name,
-          sessionDate: new Date().toISOString().slice(0, 10),
-          courtCount,
-          slotMinutes,
-          useTimeSlots,
-          scoringRule,
-          teamIds: Array.from(selected),
-        },
-      });
-      setSessionDefaults({ courtCount, slotMinutes, useTimeSlots, scoringRule });
-      closeModal();
-      await loadSchedule();
+      try {
+        await api('/sessions', {
+          method: 'POST',
+          body: {
+            name,
+            sessionDate: new Date().toISOString().slice(0, 10),
+            courtCount,
+            slotMinutes,
+            useTimeSlots,
+            scoringRule,
+            teamIds: Array.from(selected),
+          },
+        });
+        setSessionDefaults({ courtCount, slotMinutes, useTimeSlots, scoringRule });
+        closeModal();
+        await loadSchedule();
+      } finally {
+        e.target.disabled = false;
+      }
     });
 
     return root;
