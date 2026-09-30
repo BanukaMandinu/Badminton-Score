@@ -8,6 +8,7 @@ import {
   deleteTeam,
   extendSessionSchedule,
   getFinalSlotForSession,
+  listSessions,
   getLatestSession,
   getMatch,
   getOrStartMatchForSlot,
@@ -67,8 +68,13 @@ app.delete('/teams/:id', async (c) => {
 
 // ---- Sessions & schedule ----
 
+app.get('/sessions', async (c) => {
+  return c.json({ sessions: await listSessions(c.env.DB) });
+});
+
 app.get('/sessions/latest', async (c) => {
-  const session = await getLatestSession(c.env.DB);
+  const idParam = Number(c.req.query('id'));
+  const session = (idParam ? await getSessionById(c.env.DB, idParam) : null) ?? (await getLatestSession(c.env.DB));
   if (!session) return c.json({ session: null, slots: [] });
   const slots = await listScheduleSlots(c.env.DB, session.id);
   return c.json({ session, slots });

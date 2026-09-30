@@ -167,6 +167,11 @@ export async function getLatestSession(db: D1Database): Promise<SessionRow | nul
   return row ?? null;
 }
 
+export async function listSessions(db: D1Database): Promise<Pick<SessionRow, 'id' | 'name' | 'created_at'>[]> {
+  const rows = await db.prepare('SELECT id, name, created_at FROM sessions ORDER BY created_at DESC, id DESC').all<Pick<SessionRow, 'id' | 'name' | 'created_at'>>();
+  return rows.results;
+}
+
 export async function getSessionById(db: D1Database, sessionId: number): Promise<SessionRow | null> {
   const row = await db.prepare('SELECT * FROM sessions WHERE id = ?').bind(sessionId).first<SessionRow>();
   return row ?? null;

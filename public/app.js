@@ -418,11 +418,16 @@ async function openRandomizeTeamsForm() {
 
 // ---------- Schedule ----------
 
-let scheduleState = { session: null, slots: [] };
+let scheduleState = { session: null, slots: [], sessions: [] };
+let selectedSessionId = null;
 
 async function loadSchedule() {
-  const data = await api('/sessions/latest');
-  scheduleState = data;
+  const [data, { sessions }] = await Promise.all([
+    api(selectedSessionId ? `/sessions/latest?id=${selectedSessionId}` : '/sessions/latest'),
+    api('/sessions'),
+  ]);
+  selectedSessionId = data.session ? data.session.id : null;
+  scheduleState = { ...data, sessions };
   renderSchedule();
 }
 
@@ -446,7 +451,7 @@ function renderSlotCard(slot, session) {
 
 function renderSchedule() {
   const container = document.getElementById('schedule-content');
-  const { session, slots } = scheduleState;
+  const { session, slots, sessions } = scheduleState;
 
   if (!session) {
     container.innerHTML = `
@@ -488,7 +493,12 @@ function renderSchedule() {
 
   container.innerHTML = h`
     <div style="margin-bottom:8px">
-      <h1 style="margin-bottom:2px">${escapeHtml(session.name)}</h1>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <select id="session-select" style="flex:1;min-width:0;font-size:16px;font-weight:700">
+          ${sessions.map((s) => `<option value="${s.id}"${s.id === session.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+        </select>
+        <button class="btn btn-danger" id="delete-session-btn" aria-label="Delete session" title="Delete session" style="padding:10px 14px">🗑</button>
+      </div>
       <p class="muted small">${metaParts.join(' · ')}</p>
     </div>
     <div class="stack">${roundsHtml}</div>
@@ -496,7 +506,6 @@ function renderSchedule() {
     <div class="stack" style="margin-top:16px">
       <button class="btn btn-secondary btn-block" id="extend-btn">Extend schedule</button>
       <button class="btn btn-secondary btn-block" id="new-session-btn">+ New session</button>
-      <button class="btn btn-danger btn-block" id="delete-session-btn">Delete session</button>
     </div>
   `;
 
@@ -513,9 +522,14 @@ function renderSchedule() {
     }
   });
   container.querySelector('#new-session-btn').addEventListener('click', openNewSessionForm);
+  container.querySelector('#session-select').addEventListener('change', async (e) => {
+    selectedSessionId = Number(e.target.value);
+    await loadSchedule();
+  });
   container.querySelector('#delete-session-btn').addEventListener('click', async () => {
     if (!confirm(`Delete "${session.name}"? This removes its schedule, matches, and scores. Teams are kept.`)) return;
     await api(`/sessions/${session.id}`, { method: 'DELETE' });
+    selectedSessionId = null;
     await loadSchedule();
   });
 }
@@ -661,6 +675,7 @@ function openNewSessionForm() {
         });
         setSessionDefaults({ courtCount, slotMinutes, useTimeSlots, rounds, hasFinal, scoringRule });
         closeModal();
+        selectedSessionId = null;
         await loadSchedule();
       } finally {
         e.target.disabled = false;
@@ -840,7 +855,7 @@ function paintMatch(root, match) {
 // ---------- Leaderboard ----------
 
 async function loadLeaderboard() {
-  const { session } = await api('/sessions/latest');
+  const { session } = await api(selectedSessionId ? `/sessions/latest?id=${selectedSessionId}` : '/sessions/latest');
   if (!session) {
     renderLeaderboard(null, [], null);
     return;
