@@ -492,14 +492,18 @@ function renderSchedule() {
   metaParts.push(RULE_LABEL[session.scoring_rule]);
 
   container.innerHTML = h`
-    <div style="margin-bottom:8px">
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <select id="session-select" style="flex:1;min-width:0;font-size:16px;font-weight:700">
-          ${sessions.map((s) => `<option value="${s.id}"${s.id === session.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
-        </select>
-        <button class="btn btn-danger" id="delete-session-btn" aria-label="Delete session" title="Delete session" style="padding:10px 14px">🗑</button>
+    <div class="session-header">
+      <div class="session-row">
+        <div class="session-select-wrap">
+          <select id="session-select" class="session-select" aria-label="Select session">
+            ${sessions.map((s) => `<option value="${s.id}"${s.id === session.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="icon-btn icon-btn-danger" id="delete-session-btn" aria-label="Delete session" title="Delete session">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>
+        </button>
       </div>
-      <p class="muted small">${metaParts.join(' · ')}</p>
+      <p class="muted small session-meta">${metaParts.join(' · ')}</p>
     </div>
     <div class="stack">${roundsHtml}</div>
     ${finalHtml}
