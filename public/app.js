@@ -709,7 +709,7 @@ function renderSchedule() {
     ${finalHtml}
     <div class="stack" style="margin-top:16px">
       <button class="btn btn-secondary btn-block" id="extend-btn" ${finalDone ? 'disabled title="The final is finished"' : ''}>Extend schedule</button>
-      ${finalDone ? '<p class="muted small" style="text-align:center">The final is finished, so the schedule can't be extended.</p>' : ''}
+      ${finalDone ? '<p class="muted small" style="text-align:center">The final is finished, so the schedule cannot be extended.</p>' : ''}
       <button class="btn btn-secondary btn-block" id="new-session-btn">+ New session</button>
     </div>
   `;
