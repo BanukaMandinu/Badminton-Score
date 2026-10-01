@@ -43,6 +43,76 @@ window.addEventListener('unhandledrejection', (event) => {
 const THEME_KEY = 'badminton.theme';
 const DEFAULTS_KEY = 'badminton.sessionDefaults';
 
+const ACCENT_KEY = 'badminton.accent';
+
+// id: [label, primary in light mode, primary in dark mode]
+const ACCENTS = {
+  green: ['Green', '#1E6F46', '#3FA873'],
+  blue: ['Blue', '#2563EB', '#60A5FA'],
+  purple: ['Purple', '#7C3AED', '#A78BFA'],
+  pink: ['Pink', '#BE185D', '#F472B6'],
+  orange: ['Orange', '#C2410C', '#FB923C'],
+  teal: ['Teal', '#0F766E', '#2DD4BF'],
+  red: ['Red', '#B91C1C', '#F87171'],
+  slate: ['Slate', '#475569', '#94A3B8'],
+};
+
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+function safeGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage unavailable (private mode) — preference just won't persist
+  }
+}
+
+function getAccentPreference() {
+  const stored = safeGet(ACCENT_KEY);
+  return ACCENTS[stored] ? stored : 'green';
+}
+
+function applyAccent() {
+  const accent = getAccentPreference();
+  const pref = getThemePreference();
+  const dark = pref === 'dark' || (pref === 'system' && darkQuery.matches);
+  const [, lightColor, darkColor] = ACCENTS[accent];
+  const root = document.documentElement;
+  root.style.setProperty('--primary', dark ? darkColor : lightColor);
+  root.style.setProperty('--primary-text', dark ? '#08110C' : '#FFFFFF');
+  document.querySelectorAll('#accent-swatches .swatch').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.accent === accent);
+  });
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = dark ? '#0C0F14' : '#F3F5F9';
+}
+
+function setAccentPreference(accent) {
+  safeSet(ACCENT_KEY, accent);
+  applyAccent();
+}
+
+function renderAccentSwatches() {
+  const wrap = document.getElementById('accent-swatches');
+  wrap.innerHTML = Object.entries(ACCENTS)
+    .map(
+      ([id, [label, lightColor]]) =>
+        `<button class="swatch" data-accent="${id}" aria-label="${label}"><span class="swatch-dot" style="background:${lightColor}"></span>${label}</button>`,
+    )
+    .join('');
+  wrap.querySelectorAll('.swatch').forEach((btn) => {
+    btn.addEventListener('click', () => setAccentPreference(btn.dataset.accent));
+  });
+}
+
 function applyTheme(pref) {
   const root = document.documentElement;
   if (pref === 'system') root.removeAttribute('data-theme');
@@ -52,16 +122,19 @@ function applyTheme(pref) {
   document.querySelectorAll('#theme-segmented .segment').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.theme === pref);
   });
+  applyAccent();
 }
 
 function getThemePreference() {
-  return localStorage.getItem(THEME_KEY) || 'system';
+  return safeGet(THEME_KEY) || 'system';
 }
 
 function setThemePreference(pref) {
-  localStorage.setItem(THEME_KEY, pref);
+  safeSet(THEME_KEY, pref);
   applyTheme(pref);
 }
+
+darkQuery.addEventListener('change', applyAccent);
 
 const FALLBACK_DEFAULTS = {
   courtCount: 1,
@@ -1065,6 +1138,7 @@ function closeModal() {
 
 // ---------- Boot ----------
 
+renderAccentSwatches();
 applyTheme(getThemePreference());
 initSettingsView();
 loadTeams();
