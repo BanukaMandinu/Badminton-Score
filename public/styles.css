@@ -467,6 +467,40 @@ button.side-pick:active { transform: scale(.97); background: var(--primary); col
 .toast { display: flex; align-items: center; gap: 14px; pointer-events: auto; }
 .toast-action { background: none; border: none; color: color-mix(in srgb, var(--primary) 50%, #fff); font-weight: 800; font-size: 14px; cursor: pointer; padding: 0 2px; }
 
+/* ---------- Sheet header & player rows ---------- */
+.sheet-title { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.sheet-title h2 { font-size: 21px; }
+.sheet-icon { width: 46px; height: 46px; border-radius: 14px; font-size: 22px; margin: 0; flex: none; }
+.player-row { display: flex; align-items: center; gap: 10px; }
+.player-num { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--chip-strong); color: var(--primary); font-size: 13px; font-weight: 800; }
+.player-row .player-input { flex: 1; }
+.add-row-btn { width: 100%; padding: 12px; border: 1.5px dashed color-mix(in srgb, var(--primary) 45%, var(--border)); border-radius: 12px; background: transparent; color: var(--primary); font-weight: 700; font-size: 14px; cursor: pointer; transition: background .15s; }
+.add-row-btn:hover { background: var(--chip); }
+
+/* ---------- History ---------- */
+.history-section + .history-section { margin-top: 26px; }
+.section-title { font-size: 18px; margin-bottom: 12px; }
+.history-section .round-label { margin-top: 14px; }
+.list-card { padding: 4px 14px; }
+.stat-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.stat-row + .stat-row { border-top: 1px solid var(--border); }
+.rank { width: 22px; text-align: center; font-weight: 800; color: var(--subtext); font-variant-numeric: tabular-nums; }
+.rank-1 { color: #D9A100; } .rank-2 { color: #8E99A8; } .rank-3 { color: #B8733A; }
+.avatar-sm { width: 34px; height: 34px; font-size: 14px; border: none; flex: none; }
+.stat-main { flex: 1; min-width: 0; }
+.stat-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.winbar { height: 5px; border-radius: 3px; background: var(--chip-strong); margin-top: 6px; overflow: hidden; }
+.winbar span { display: block; height: 100%; border-radius: 3px; background: var(--primary); }
+.stat-nums { display: flex; flex-direction: column; align-items: flex-end; flex: none; text-align: right; }
+.stat-nums strong { font-size: 15px; }
+.result-card { display: flex; align-items: stretch; gap: 8px; padding: 12px; }
+.result-side { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 8px; border-radius: 12px; background: var(--bg); border: 1.5px solid var(--border); text-align: center; }
+.result-name { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+.result-score { font-family: var(--font-display); font-size: 26px; font-weight: 800; color: var(--subtext); line-height: 1.1; }
+.result-won { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, var(--card)); }
+.result-won .result-score { color: var(--success); }
+.result-card .vs { align-self: center; }
+
 @media (max-width: 420px) {
   .score-col .score-num { font-size: 48px; }
   .view h1, .view-header h1 { font-size: 24px; }

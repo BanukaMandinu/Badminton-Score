@@ -349,12 +349,18 @@ function openTeamForm(team) {
   showModal(() => {
     const root = document.createElement('div');
     root.innerHTML = h`
-      <h2 style="margin-bottom:14px">${team ? 'Edit team' : 'New team'}</h2>
+      <div class="sheet-title">
+        <div class="empty-icon sheet-icon">👥</div>
+        <div>
+          <h2>${team ? 'Edit team' : 'New team'}</h2>
+          <p class="muted small">Add the players — the team name fills in automatically.</p>
+        </div>
+      </div>
       <div class="stack">
-        <label class="field"><span>Team name <span class="muted small">(auto: player names)</span></span><input id="team-name-input" value="${team ? escapeHtml(team.name) : ''}" placeholder="e.g. Alex & Sam" /></label>
-        <div class="field-label">Players</div>
-        <div id="player-fields" class="stack"></div>
-        <button class="btn btn-secondary" id="add-player-field-btn" type="button">+ Add player</button>
+        <label class="field"><span>Team name</span><input id="team-name-input" value="${team ? escapeHtml(team.name) : ''}" placeholder="e.g. Alex & Sam" /></label>
+        <div class="field-label" style="margin:6px 0 0">Players</div>
+        <div id="player-fields" class="stack" style="gap:8px"></div>
+        <button class="add-row-btn" id="add-player-field-btn" type="button">+ Add player</button>
         <div class="row" style="margin-top:8px">
           <button class="btn btn-secondary" id="team-cancel-btn">Cancel</button>
           <button class="btn btn-primary" id="team-save-btn">Save team</button>
@@ -378,9 +384,12 @@ function openTeamForm(team) {
       fieldsContainer.innerHTML = names
         .map(
           (n, i) => h`
-        <div class="row" data-player-row="${i}">
-          <input class="player-input" data-index="${i}" value="${escapeHtml(n)}" placeholder="Player ${i + 1}" style="flex:1;font-size:15px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text)" />
-          <button type="button" class="icon-btn-plain" data-remove-index="${i}" style="flex:0">✕</button>
+        <div class="player-row" data-player-row="${i}">
+          <span class="player-num">${i + 1}</span>
+          <input class="player-input" data-index="${i}" value="${escapeHtml(n)}" placeholder="Player ${i + 1}" />
+          <button type="button" class="icon-btn-plain" data-remove-index="${i}" title="Remove player" aria-label="Remove player">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
         </div>`,
         )
         .join('');
@@ -1183,9 +1192,7 @@ function renderLeaderboard(session, standings, finalSlot) {
         <div>${escapeHtml(finalSlot.team_a_name)} vs ${escapeHtml(finalSlot.team_b_name)}</div>
         <div class="muted small" style="margin-top:4px">${finalStatusText}</div>
       </div>`
-    : session.has_final
-      ? `<p class="muted small" style="margin-top:12px">The Final will appear here once every round is finished.</p>`
-      : '';
+    : '';
 
   container.innerHTML = h`
     <h2 style="font-size:17px;margin-bottom:4px">${escapeHtml(session.name)}</h2>
@@ -1206,30 +1213,53 @@ async function loadHistory() {
   renderHistory(weeks, stats);
 }
 
+function emptyState(icon, title, text) {
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><strong>${title}</strong><p>${text}</p></div>`;
+}
+
 function renderHistory(weeks, stats) {
   const container = document.getElementById('history-content');
+
   const statsHtml =
     stats.length === 0
-      ? `<p class="muted">No completed matches yet.</p>`
-      : `<div class="card"><table class="stats-table">
-          <tr><th>Player</th><th>W-L</th><th>Pts</th></tr>
-          ${stats.map((s) => `<tr><td>${escapeHtml(s.playerName)}</td><td>${s.wins}-${s.losses}</td><td class="muted">${s.pointsFor}/${s.pointsAgainst}</td></tr>`).join('')}
-        </table></div>`;
+      ? emptyState('📊', 'No stats yet', 'Player standings appear after your first completed match.')
+      : `<div class="card list-card">${stats
+          .map((s, i) => {
+            const played = s.wins + s.losses;
+            const pct = played ? Math.round((s.wins / played) * 100) : 0;
+            return `<div class="stat-row">
+              <span class="rank ${i < 3 ? `rank-${i + 1}` : ''}">${i + 1}</span>
+              <span class="avatar avatar-sm" style="background:${avatarColor(s.playerName)}">${escapeHtml(s.playerName.trim().charAt(0).toUpperCase())}</span>
+              <div class="stat-main">
+                <div class="stat-name">${escapeHtml(s.playerName)}</div>
+                <div class="winbar"><span style="width:${pct}%"></span></div>
+              </div>
+              <div class="stat-nums">
+                <strong>${s.wins}-${s.losses}</strong>
+                <span class="muted small">${pct}% · ${s.pointsFor}/${s.pointsAgainst} pts</span>
+              </div>
+            </div>`;
+          })
+          .join('')}</div>`;
+
+  const sideHtml = (name, score, won) =>
+    `<div class="result-side ${won ? 'result-won' : ''}"><span class="result-name">${won ? '🏆 ' : ''}${escapeHtml(name)}</span><span class="result-score">${score}</span></div>`;
 
   const weeksHtml =
     weeks.length === 0
-      ? `<p class="muted">Play and finish a match to see it here.</p>`
+      ? emptyState('🏸', 'No matches yet', 'Play and finish a match to see it here.')
       : weeks
           .map(
-            (w) => h`
-      <div class="round-label">${w.weekLabel}</div>
+            (w) => `
+      <div class="round-label">${escapeHtml(w.weekLabel)}</div>
       <div class="stack">
         ${w.matches
           .map(
-            (m) => h`
-          <div class="card">
-            <div>${escapeHtml(m.team_a_name)} <strong style="color:var(--primary)">${m.team_a_score}</strong> — <strong style="color:var(--primary)">${m.team_b_score}</strong> ${escapeHtml(m.team_b_name)}</div>
-            <div class="muted small" style="margin-top:4px">Winner: ${m.winner_team_id === m.team_a_id ? escapeHtml(m.team_a_name) : escapeHtml(m.team_b_name)}</div>
+            (m) => `
+          <div class="card result-card">
+            ${sideHtml(m.team_a_name, m.team_a_score, m.winner_team_id === m.team_a_id)}
+            <span class="vs">VS</span>
+            ${sideHtml(m.team_b_name, m.team_b_score, m.winner_team_id === m.team_b_id)}
           </div>`,
           )
           .join('')}
@@ -1238,10 +1268,14 @@ function renderHistory(weeks, stats) {
           .join('');
 
   container.innerHTML = `
-    <h2 style="font-size:17px;margin-bottom:10px">Player standings</h2>
-    ${statsHtml}
-    <h2 style="font-size:17px;margin:18px 0 4px">Weekly history</h2>
-    ${weeksHtml}
+    <section class="history-section">
+      <h2 class="section-title">Player standings</h2>
+      ${statsHtml}
+    </section>
+    <section class="history-section">
+      <h2 class="section-title">Match history</h2>
+      ${weeksHtml}
+    </section>
   `;
 }
 
