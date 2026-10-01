@@ -150,6 +150,20 @@ app.post('/slots/:id/start', async (c) => {
   return c.json({ match });
 });
 
+// One round trip for "start (if needed) and declare winner" from the schedule.
+app.post('/slots/:id/declare-winner', async (c) => {
+  const slotId = Number(c.req.param('id'));
+  const body = await c.req.json<{ winnerSide: 'a' | 'b' }>();
+  if (body.winnerSide !== 'a' && body.winnerSide !== 'b') return c.json({ error: 'Invalid winner' }, 400);
+  const slot = await getScheduleSlotById(c.env.DB, slotId);
+  if (!slot) return c.json({ error: 'Slot not found' }, 404);
+  const session = await getSessionById(c.env.DB, slot.session_id);
+  if (!session) return c.json({ error: 'Session not found' }, 404);
+  const matchId = await getOrStartMatchForSlot(c.env.DB, slot, session);
+  const match = await declareWinner(c.env.DB, matchId, body.winnerSide);
+  return c.json({ match });
+});
+
 app.get('/matches/:id', async (c) => {
   const matchId = Number(c.req.param('id'));
   const match = await getMatch(c.env.DB, matchId);

@@ -612,6 +612,42 @@ function renderSlotCard(slot, session) {
     </div>`;
 }
 
+// Optimistic: the card flips to "Done" immediately; the server call and the
+// refresh happen in the background and roll back on failure.
+function pickWinnerFromSchedule(slotId, side, teamName) {
+  const slot = scheduleState.slots.find((x) => x.id === slotId);
+  if (!slot || slot.status === 'completed') return;
+  const before = { status: slot.status, winner: slot.match_winner_team_id };
+  slot.status = 'completed';
+  slot.match_winner_team_id = side === 'a' ? slot.team_a_id : slot.team_b_id;
+  renderSchedule();
+
+  const request = api(`/slots/${slotId}/declare-winner`, { method: 'POST', body: { winnerSide: side } });
+  request
+    .then(() => loadSchedule())
+    .catch((err) => {
+      slot.status = before.status;
+      slot.match_winner_team_id = before.winner;
+      renderSchedule();
+      toast(err.message || 'Could not save the result. Try again.', 'error');
+    });
+
+  toast(`${teamName} won`, 'success', {
+    label: 'Undo',
+    onClick: async () => {
+      slot.status = before.status;
+      slot.match_winner_team_id = before.winner;
+      renderSchedule();
+      try {
+        const { match } = await request;
+        await api(`/matches/${match.id}/reopen`, { method: 'POST' });
+      } finally {
+        await loadSchedule();
+      }
+    },
+  });
+}
+
 function renderSchedule() {
   const container = document.getElementById('schedule-content');
   const { session, slots, sessions } = scheduleState;
@@ -680,19 +716,9 @@ function renderSchedule() {
     card.addEventListener('click', () => openMatchModal(Number(card.dataset.slotId)));
   });
   container.querySelectorAll('[data-pick-slot]').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const slotId = Number(btn.dataset.pickSlot);
-      const { match } = await api(`/slots/${slotId}/start`, { method: 'POST' });
-      await api(`/matches/${match.id}/declare-winner`, { method: 'POST', body: { winnerSide: btn.dataset.side } });
-      await loadSchedule();
-      toast(`${btn.textContent} won`, 'success', {
-        label: 'Undo',
-        onClick: async () => {
-          await api(`/matches/${match.id}/reopen`, { method: 'POST' });
-          await loadSchedule();
-        },
-      });
+      pickWinnerFromSchedule(Number(btn.dataset.pickSlot), btn.dataset.side, btn.textContent.trim());
     });
   });
   container.querySelector('#extend-btn').addEventListener('click', async (e) => {
@@ -904,7 +930,7 @@ function renderMatchModal(match) {
     try {
       const fresh = await api(`/matches/${match.id}`);
       const root = document.getElementById('match-modal-root');
-      if (root) paintMatch(root, fresh.match);
+      if (root && !root._pending) paintMatch(root, fresh.match);
     } catch {
       /* transient network hiccup — next tick retries */
     }
@@ -991,13 +1017,34 @@ function paintMatch(root, match) {
     });
   }
 
+  // Score taps update the number instantly; requests are chained so the
+  // server applies them in order, and the screen is repainted from the
+  // server's answer only once the last one has landed.
+  const local = { a: match.team_a_score, b: match.team_b_score };
   root.querySelectorAll('.round-btn[data-side]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const res = await api(`/matches/${match.id}/score`, {
-        method: 'POST',
-        body: { side: btn.dataset.side, delta: Number(btn.dataset.delta) },
-      });
-      paintMatch(root, res.match);
+    btn.addEventListener('click', () => {
+      const side = btn.dataset.side;
+      const delta = Number(btn.dataset.delta);
+      local[side] = Math.max(0, local[side] + delta);
+      const col = btn.closest('.score-col');
+      col.querySelector('.score-num').textContent = local[side];
+      col.querySelector('.round-btn:not(.primary)').disabled = local[side] === 0;
+
+      root._pending = (root._pending || 0) + 1;
+      root._chain = (root._chain || Promise.resolve())
+        .then(() => api(`/matches/${match.id}/score`, { method: 'POST', body: { side, delta } }))
+        .then((res) => {
+          root._pending -= 1;
+          if (root._pending === 0) paintMatch(root, res.match);
+        })
+        .catch(async (err) => {
+          root._pending -= 1;
+          toast(err.message || 'Could not save the score.', 'error');
+          if (root._pending === 0) {
+            const fresh = await api(`/matches/${match.id}`).catch(() => null);
+            if (fresh) paintMatch(root, fresh.match);
+          }
+        });
     });
   });
 
