@@ -429,22 +429,24 @@ table.stats-table td:nth-child(2) { font-weight: 600; }
 .slot-card { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px; }
 .slot-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .slot-info { flex: 1; min-width: 0; }
-.slot-pick { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.slot-pick { display: flex; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .slot-pick-label { font-size: 12px; font-weight: 700; color: var(--subtext); flex: none; }
 .pick-btn {
   flex: 0 1 auto; min-width: 0; max-width: 40%;
-  padding: 5px 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--chip);
-  color: var(--text);
-  font-size: 12px; font-weight: 700;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-size: 13px; font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  text-underline-offset: 3px;
   cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  transition: background .15s, color .15s, border-color .15s, transform .1s;
 }
-.pick-btn:hover { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
-.pick-btn:active { transform: scale(.96); }
+.pick-btn:hover { text-decoration-color: var(--primary); }
+.pick-btn:active { opacity: .6; }
+.pick-btn + .pick-btn::before { content: '·'; color: var(--subtext); margin-right: 8px; text-decoration: none; display: inline-block; }
 .toast { display: flex; align-items: center; gap: 14px; pointer-events: auto; }
 .toast-action { background: none; border: none; color: color-mix(in srgb, var(--primary) 50%, #fff); font-weight: 800; font-size: 14px; cursor: pointer; padding: 0 2px; }
 
