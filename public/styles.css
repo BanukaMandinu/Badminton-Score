@@ -143,9 +143,9 @@ button { font-family: inherit; }
 .btn {
   border: none;
   border-radius: 12px;
-  padding: 10px 16px;
+  padding: 13px 18px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
   text-align: center;
   transition: filter .15s, transform .1s, background .15s;
@@ -425,28 +425,33 @@ table.stats-table td:nth-child(2) { font-weight: 600; }
 @keyframes toast-in { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes toast-away { to { transform: translateY(8px); opacity: 0; } }
 
-/* ---------- Schedule quick-pick winner ---------- */
-.slot-card { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px; }
-.slot-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.slot-info { flex: 1; min-width: 0; }
-.slot-pick { display: flex; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-.slot-pick-label { font-size: 12px; font-weight: 700; color: var(--subtext); flex: none; }
-.pick-btn {
-  flex: 0 1 auto; min-width: 0; max-width: 40%;
-  padding: 2px 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 13px; font-weight: 700;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--primary) 35%, transparent);
-  text-underline-offset: 3px;
-  cursor: pointer;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+/* ---------- Schedule match card ---------- */
+.slot-card { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+.slot-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px; }
+.slot-head .slot-meta { margin: 0; font-weight: 600; }
+.matchup { display: flex; align-items: stretch; gap: 8px; }
+.vs { align-self: center; font-size: 11px; font-weight: 800; color: var(--subtext); letter-spacing: .06em; }
+.side {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 16px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  text-align: center;
 }
-.pick-btn:hover { text-decoration-color: var(--primary); }
-.pick-btn:active { opacity: .6; }
-.pick-btn + .pick-btn::before { content: '·'; color: var(--subtext); margin-right: 8px; text-decoration: none; display: inline-block; }
+.side-name { font-weight: 800; font-size: 15px; overflow-wrap: anywhere; }
+.side-score { font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--subtext); }
+button.side-pick { cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
+button.side-pick:hover { border-color: var(--primary); background: var(--chip); }
+button.side-pick:active { transform: scale(.97); background: var(--primary); color: var(--primary-text); }
+.side-won { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, var(--card)); }
+.side-won .side-score { color: var(--success); }
+.side-lost { opacity: .6; }
+.slot-foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--subtext); padding: 0 4px; }
+.slot-foot-link { color: var(--primary); font-weight: 700; }
 .toast { display: flex; align-items: center; gap: 14px; pointer-events: auto; }
 .toast-action { background: none; border: none; color: color-mix(in srgb, var(--primary) 50%, #fff); font-weight: 800; font-size: 14px; cursor: pointer; padding: 0 2px; }
 

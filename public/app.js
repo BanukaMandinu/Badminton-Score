@@ -580,31 +580,35 @@ async function loadSchedule() {
 }
 
 function renderSlotCard(slot, session) {
-  let winnerLine = '';
-  if (slot.status === 'completed' && slot.match_winner_team_id) {
-    const winnerName = slot.match_winner_team_id === slot.team_a_id ? slot.team_a_name : slot.team_b_name;
-    const hasScore = slot.match_team_a_score || slot.match_team_b_score;
-    winnerLine = `<div class="slot-winner">🏆 ${escapeHtml(winnerName)}${hasScore ? ` (${slot.match_team_a_score}-${slot.match_team_b_score})` : ''}</div>`;
-  }
-  const quickPick =
-    slot.status !== 'completed'
-      ? h`<div class="slot-pick">
-          <span class="slot-pick-label">Who won?</span>
-          <button class="pick-btn" data-pick-slot="${slot.id}" data-side="a">${escapeHtml(slot.team_a_name)}</button>
-          <button class="pick-btn" data-pick-slot="${slot.id}" data-side="b">${escapeHtml(slot.team_b_name)}</button>
-        </div>`
-      : '';
+  const done = slot.status === 'completed';
+  const winnerSide = !done ? null : slot.match_winner_team_id === slot.team_a_id ? 'a' : 'b';
+  const hasScore = done && (slot.match_team_a_score || slot.match_team_b_score);
+  const when = `Court ${slot.court_number}${session.use_time_slots ? ` · ${formatOffset(session.created_at, slot.start_offset_minutes)}` : ''}`;
+
+  const side = (key, name, score) => {
+    const won = winnerSide === key;
+    const lost = done && !won;
+    const inner = `<span class="side-name">${won ? '🏆 ' : ''}${escapeHtml(name)}</span>${hasScore ? `<span class="side-score">${score}</span>` : ''}`;
+    return done
+      ? `<div class="side ${won ? 'side-won' : ''} ${lost ? 'side-lost' : ''}">${inner}</div>`
+      : `<button class="side side-pick" data-pick-slot="${slot.id}" data-side="${key}" aria-label="${escapeHtml(name)} won">${inner}</button>`;
+  };
+
   return h`
     <div class="card slot-card" data-slot-id="${slot.id}">
-      <div class="slot-main">
-        <div class="slot-info">
-          <div class="slot-teams">${escapeHtml(slot.team_a_name)} vs ${escapeHtml(slot.team_b_name)}</div>
-          <div class="slot-meta">Court ${slot.court_number}${session.use_time_slots ? ` · ${formatOffset(session.created_at, slot.start_offset_minutes)}` : ''}</div>
-          ${winnerLine}
-        </div>
+      <div class="slot-head">
+        <span class="slot-meta">${when}</span>
         ${statusBadge(slot.status)}
       </div>
-      ${quickPick}
+      <div class="matchup">
+        ${side('a', slot.team_a_name, slot.match_team_a_score)}
+        <span class="vs">VS</span>
+        ${side('b', slot.team_b_name, slot.match_team_b_score)}
+      </div>
+      <div class="slot-foot">
+        <span>${done ? 'Tap card to edit' : 'Tap the winning team'}</span>
+        <span class="slot-foot-link">Live score ›</span>
+      </div>
     </div>`;
 }
 
