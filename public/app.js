@@ -726,7 +726,7 @@ function renderSchedule() {
 
 function statusBadge(status) {
   const config = {
-    pending: { label: 'Pending', color: 'var(--subtext)' },
+    pending: { label: 'Pending', color: 'var(--primary)' },
     in_progress: { label: 'Live', color: 'var(--warning)' },
     completed: { label: 'Done', color: 'var(--success)' },
   }[status];
