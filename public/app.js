@@ -665,6 +665,7 @@ function renderSchedule() {
 
   const regularSlots = slots.filter((s) => !s.is_final);
   const finalSlot = slots.find((s) => s.is_final);
+  const finalDone = finalSlot?.status === 'completed';
 
   const byRound = new Map();
   for (const slot of regularSlots) {
@@ -707,7 +708,8 @@ function renderSchedule() {
     <div class="stack">${roundsHtml}</div>
     ${finalHtml}
     <div class="stack" style="margin-top:16px">
-      <button class="btn btn-secondary btn-block" id="extend-btn">Extend schedule</button>
+      <button class="btn btn-secondary btn-block" id="extend-btn" ${finalDone ? 'disabled title="The final is finished"' : ''}>Extend schedule</button>
+      ${finalDone ? '<p class="muted small" style="text-align:center">The final is finished, so the schedule can't be extended.</p>' : ''}
       <button class="btn btn-secondary btn-block" id="new-session-btn">+ New session</button>
     </div>
   `;

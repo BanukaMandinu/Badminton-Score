@@ -126,6 +126,8 @@ app.delete('/sessions/:id', async (c) => {
 
 app.post('/sessions/:id/extend', async (c) => {
   const sessionId = Number(c.req.param('id'));
+  const finalSlot = await getFinalSlotForSession(c.env.DB, sessionId);
+  if (finalSlot?.status === 'completed') return c.json({ error: 'The final is finished; the schedule can no longer be extended.' }, 409);
   await extendSessionSchedule(c.env.DB, sessionId);
   const slots = await listScheduleSlots(c.env.DB, sessionId);
   return c.json({ slots });
