@@ -143,9 +143,9 @@ button { font-family: inherit; }
 .btn {
   border: none;
   border-radius: 12px;
-  padding: 13px 18px;
+  padding: 10px 16px;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
   text-align: center;
   transition: filter .15s, transform .1s, background .15s;
@@ -426,19 +426,19 @@ table.stats-table td:nth-child(2) { font-weight: 600; }
 @keyframes toast-away { to { transform: translateY(8px); opacity: 0; } }
 
 /* ---------- Schedule quick-pick winner ---------- */
-.slot-card { flex-direction: column; align-items: stretch; gap: 12px; }
+.slot-card { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px; }
 .slot-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .slot-info { flex: 1; min-width: 0; }
-.slot-pick { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.slot-pick { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .slot-pick-label { font-size: 12px; font-weight: 700; color: var(--subtext); flex: none; }
 .pick-btn {
-  flex: 1; min-width: 0;
-  padding: 10px 8px;
+  flex: 0 1 auto; min-width: 0; max-width: 40%;
+  padding: 5px 12px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 999px;
   background: var(--chip);
   color: var(--text);
-  font-size: 14px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
   cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   transition: background .15s, color .15s, border-color .15s, transform .1s;
