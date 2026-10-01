@@ -324,6 +324,11 @@ function renderTeams() {
 
 document.getElementById('teams-add-btn').addEventListener('click', () => openTeamForm(null));
 
+// "Alex & Sam" — the default team name built from its players.
+function teamNameFromPlayers(names) {
+  return names.map((n) => n.trim()).filter(Boolean).join(' & ');
+}
+
 function openTeamForm(team) {
   const playerNames = team ? team.players.map((p) => p.name) : ['', ''];
   showModal(() => {
@@ -331,7 +336,7 @@ function openTeamForm(team) {
     root.innerHTML = h`
       <h2 style="margin-bottom:14px">${team ? 'Edit team' : 'New team'}</h2>
       <div class="stack">
-        <label class="field"><span>Team name</span><input id="team-name-input" value="${team ? escapeHtml(team.name) : ''}" placeholder="e.g. Smashers" /></label>
+        <label class="field"><span>Team name <span class="muted small">(auto: player names)</span></span><input id="team-name-input" value="${team ? escapeHtml(team.name) : ''}" placeholder="e.g. Alex & Sam" /></label>
         <div class="field-label">Players</div>
         <div id="player-fields" class="stack"></div>
         <button class="btn btn-secondary" id="add-player-field-btn" type="button">+ Add player</button>
@@ -343,7 +348,16 @@ function openTeamForm(team) {
     `;
 
     const fieldsContainer = root.querySelector('#player-fields');
+    const nameInput = root.querySelector('#team-name-input');
     let names = [...playerNames];
+    // Keep the name in sync with the players until the user types their own.
+    let autoName = !team || team.name === teamNameFromPlayers(playerNames);
+    const syncName = () => {
+      if (autoName) nameInput.value = teamNameFromPlayers(names);
+    };
+    nameInput.addEventListener('input', () => {
+      autoName = nameInput.value.trim() === '' || nameInput.value === teamNameFromPlayers(names);
+    });
 
     function renderPlayerFields() {
       fieldsContainer.innerHTML = names
@@ -358,11 +372,13 @@ function openTeamForm(team) {
       fieldsContainer.querySelectorAll('.player-input').forEach((input) => {
         input.addEventListener('input', () => {
           names[Number(input.dataset.index)] = input.value;
+          syncName();
         });
       });
       fieldsContainer.querySelectorAll('[data-remove-index]').forEach((btn) => {
         btn.addEventListener('click', () => {
           names.splice(Number(btn.dataset.removeIndex), 1);
+          syncName();
           renderPlayerFields();
         });
       });
@@ -375,12 +391,12 @@ function openTeamForm(team) {
     });
     root.querySelector('#team-cancel-btn').addEventListener('click', closeModal);
     root.querySelector('#team-save-btn').addEventListener('click', async () => {
-      const name = root.querySelector('#team-name-input').value.trim();
+      const cleaned = names.map((n) => n.trim()).filter(Boolean);
+      const name = nameInput.value.trim() || teamNameFromPlayers(cleaned);
       if (!name) {
-        toast('Team name is required.', 'error');
+        toast('Add a team name or at least one player.', 'error');
         return;
       }
-      const cleaned = names.map((n) => n.trim()).filter(Boolean);
       if (team) {
         await api(`/teams/${team.id}`, { method: 'PUT', body: { name, playerNames: cleaned } });
       } else {
@@ -524,7 +540,7 @@ async function openRandomizeTeamsForm() {
           <input
             class="rt-team-name"
             data-index="${i}"
-            value="Team ${i + 1}"
+            value="${escapeHtml(teamNameFromPlayers(team.map((p) => p.name)) || `Team ${i + 1}`)}"
             style="font-weight:700;font-size:15px;border:none;background:transparent;color:var(--text);padding:0;margin-bottom:8px;width:100%"
           />
           <div class="chip-row">
@@ -545,7 +561,7 @@ async function openRandomizeTeamsForm() {
         try {
           const names = Array.from(root.querySelectorAll('.rt-team-name')).map((input) => input.value.trim());
           for (let i = 0; i < generatedTeams.length; i++) {
-            const teamName = names[i] || `Team ${i + 1}`;
+            const teamName = names[i] || teamNameFromPlayers(generatedTeams[i].map((p) => p.name)) || `Team ${i + 1}`;
             await api('/teams', {
               method: 'POST',
               body: { name: teamName, playerNames: generatedTeams[i].map((p) => p.name) },
