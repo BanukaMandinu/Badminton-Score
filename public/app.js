@@ -34,9 +34,64 @@ async function api(path, options) {
 // person something went wrong, instead of the button just doing nothing.
 window.addEventListener('unhandledrejection', (event) => {
   console.error(event.reason);
-  alert((event.reason && event.reason.message) || 'Something went wrong. Please try again.');
+  toast((event.reason && event.reason.message) || 'Something went wrong. Please try again.', 'error');
   event.preventDefault();
 });
+
+// ---------- In-app dialogs & toasts (replace browser alert/confirm) ----------
+
+function toast(message, type = 'info') {
+  const root = document.getElementById('toast-root');
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  el.textContent = message;
+  root.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('toast-out');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  }, type === 'error' ? 5000 : 3000);
+}
+
+function confirmDialog({ title, message, confirmLabel = 'Confirm', danger = false }) {
+  return new Promise((resolve) => {
+    const root = document.getElementById('dialog-root');
+    root.hidden = false;
+    root.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'dialog';
+    box.setAttribute('role', 'alertdialog');
+    box.setAttribute('aria-modal', 'true');
+    box.innerHTML = `
+      <h3></h3>
+      <p class="muted"></p>
+      <div class="row" style="margin-top:18px">
+        <button class="btn btn-secondary" data-act="cancel">Cancel</button>
+        <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-act="ok"></button>
+      </div>`;
+    box.querySelector('h3').textContent = title;
+    box.querySelector('p').textContent = message;
+    box.querySelector('[data-act="ok"]').textContent = confirmLabel;
+    root.appendChild(box);
+
+    const finish = (result) => {
+      document.removeEventListener('keydown', onKey);
+      root.hidden = true;
+      root.innerHTML = '';
+      resolve(result);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') finish(false);
+    };
+    document.addEventListener('keydown', onKey);
+    root.onclick = (e) => {
+      if (e.target === root) finish(false);
+    };
+    box.querySelector('[data-act="cancel"]').addEventListener('click', () => finish(false));
+    box.querySelector('[data-act="ok"]').addEventListener('click', () => finish(true));
+    box.querySelector('[data-act="cancel"]').focus();
+  });
+}
 
 // ---------- Theme ----------
 
@@ -240,9 +295,16 @@ function renderTeams() {
   list.querySelectorAll('[data-delete-team]').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('Delete this team?')) return;
+      const ok = await confirmDialog({
+        title: 'Delete team?',
+        message: 'This team will be removed from your roster.',
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
       await api(`/teams/${btn.dataset.deleteTeam}`, { method: 'DELETE' });
       await loadTeams();
+      toast('Team deleted', 'success');
     });
   });
 }
@@ -302,7 +364,7 @@ function openTeamForm(team) {
     root.querySelector('#team-save-btn').addEventListener('click', async () => {
       const name = root.querySelector('#team-name-input').value.trim();
       if (!name) {
-        alert('Team name is required.');
+        toast('Team name is required.', 'error');
         return;
       }
       const cleaned = names.map((n) => n.trim()).filter(Boolean);
@@ -366,7 +428,7 @@ document.getElementById('teams-randomize-btn').addEventListener('click', openRan
 async function openRandomizeTeamsForm() {
   const { players, stats } = await api('/players');
   if (players.length < 2) {
-    alert('Add at least 2 players (via Teams) before randomizing.');
+    toast('Add at least 2 players (via Teams) before randomizing.', 'error');
     return;
   }
   const statsByPlayer = new Map(stats.map((s) => [s.playerId, s]));
@@ -423,7 +485,7 @@ async function openRandomizeTeamsForm() {
         lastPlayersPerTeam = Math.max(1, Number(root.querySelector('#rt-size-input').value) || 2);
         const chosen = pool.filter((p) => selected.has(p.id));
         if (chosen.length < 2) {
-          alert('Select at least 2 players.');
+          toast('Select at least 2 players.', 'error');
           return;
         }
         generatedTeams = generateBalancedTeams(chosen, lastPlayersPerTeam);
@@ -604,10 +666,17 @@ function renderSchedule() {
     await loadSchedule();
   });
   container.querySelector('#delete-session-btn').addEventListener('click', async () => {
-    if (!confirm(`Delete "${session.name}"? This removes its schedule, matches, and scores. Teams are kept.`)) return;
+    const ok = await confirmDialog({
+      title: 'Delete session?',
+      message: `"${session.name}" will be removed along with its schedule, matches and scores. Teams are kept.`,
+      confirmLabel: 'Delete session',
+      danger: true,
+    });
+    if (!ok) return;
     await api(`/sessions/${session.id}`, { method: 'DELETE' });
     selectedSessionId = null;
     await loadSchedule();
+    toast('Session deleted', 'success');
   });
 }
 
@@ -727,7 +796,7 @@ function openNewSessionForm() {
     root.querySelector('#session-cancel-btn').addEventListener('click', closeModal);
     root.querySelector('#session-save-btn').addEventListener('click', async (e) => {
       if (selected.size < 2) {
-        alert('Pick at least 2 teams to build a schedule.');
+        toast('Pick at least 2 teams to build a schedule.', 'error');
         return;
       }
       e.target.disabled = true;
