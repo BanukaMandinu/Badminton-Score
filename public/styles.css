@@ -425,6 +425,29 @@ table.stats-table td:nth-child(2) { font-weight: 600; }
 @keyframes toast-in { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes toast-away { to { transform: translateY(8px); opacity: 0; } }
 
+/* ---------- Schedule quick-pick winner ---------- */
+.slot-card { flex-direction: column; align-items: stretch; gap: 12px; }
+.slot-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.slot-info { flex: 1; min-width: 0; }
+.slot-pick { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.slot-pick-label { font-size: 12px; font-weight: 700; color: var(--subtext); flex: none; }
+.pick-btn {
+  flex: 1; min-width: 0;
+  padding: 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--chip);
+  color: var(--text);
+  font-size: 14px; font-weight: 700;
+  cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s, transform .1s;
+}
+.pick-btn:hover { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+.pick-btn:active { transform: scale(.96); }
+.toast { display: flex; align-items: center; gap: 14px; pointer-events: auto; }
+.toast-action { background: none; border: none; color: color-mix(in srgb, var(--primary) 50%, #fff); font-weight: 800; font-size: 14px; cursor: pointer; padding: 0 2px; }
+
 @media (max-width: 420px) {
   .score-col .score-num { font-size: 48px; }
   .view h1, .view-header h1 { font-size: 24px; }

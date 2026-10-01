@@ -40,17 +40,30 @@ window.addEventListener('unhandledrejection', (event) => {
 
 // ---------- In-app dialogs & toasts (replace browser alert/confirm) ----------
 
-function toast(message, type = 'info') {
+function toast(message, type = 'info', action = null) {
   const root = document.getElementById('toast-root');
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
   el.setAttribute('role', type === 'error' ? 'alert' : 'status');
-  el.textContent = message;
-  root.appendChild(el);
-  setTimeout(() => {
+  const text = document.createElement('span');
+  text.textContent = message;
+  el.appendChild(text);
+  const dismiss = () => {
     el.classList.add('toast-out');
     el.addEventListener('animationend', () => el.remove(), { once: true });
-  }, type === 'error' ? 5000 : 3000);
+  };
+  if (action) {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => {
+      dismiss();
+      action.onClick();
+    });
+    el.appendChild(btn);
+  }
+  root.appendChild(el);
+  setTimeout(dismiss, action ? 6000 : type === 'error' ? 5000 : 3000);
 }
 
 function confirmDialog({ title, message, confirmLabel = 'Confirm', danger = false }) {
@@ -573,14 +586,25 @@ function renderSlotCard(slot, session) {
     const hasScore = slot.match_team_a_score || slot.match_team_b_score;
     winnerLine = `<div class="slot-winner">🏆 ${escapeHtml(winnerName)}${hasScore ? ` (${slot.match_team_a_score}-${slot.match_team_b_score})` : ''}</div>`;
   }
+  const quickPick =
+    slot.status !== 'completed'
+      ? h`<div class="slot-pick">
+          <span class="slot-pick-label">Who won?</span>
+          <button class="pick-btn" data-pick-slot="${slot.id}" data-side="a">${escapeHtml(slot.team_a_name)}</button>
+          <button class="pick-btn" data-pick-slot="${slot.id}" data-side="b">${escapeHtml(slot.team_b_name)}</button>
+        </div>`
+      : '';
   return h`
     <div class="card slot-card" data-slot-id="${slot.id}">
-      <div>
-        <div class="slot-teams">${escapeHtml(slot.team_a_name)} vs ${escapeHtml(slot.team_b_name)}</div>
-        <div class="slot-meta">Court ${slot.court_number}${session.use_time_slots ? ` · ${formatOffset(session.created_at, slot.start_offset_minutes)}` : ''}</div>
-        ${winnerLine}
+      <div class="slot-main">
+        <div class="slot-info">
+          <div class="slot-teams">${escapeHtml(slot.team_a_name)} vs ${escapeHtml(slot.team_b_name)}</div>
+          <div class="slot-meta">Court ${slot.court_number}${session.use_time_slots ? ` · ${formatOffset(session.created_at, slot.start_offset_minutes)}` : ''}</div>
+          ${winnerLine}
+        </div>
+        ${statusBadge(slot.status)}
       </div>
-      ${statusBadge(slot.status)}
+      ${quickPick}
     </div>`;
 }
 
@@ -650,6 +674,22 @@ function renderSchedule() {
 
   container.querySelectorAll('[data-slot-id]').forEach((card) => {
     card.addEventListener('click', () => openMatchModal(Number(card.dataset.slotId)));
+  });
+  container.querySelectorAll('[data-pick-slot]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const slotId = Number(btn.dataset.pickSlot);
+      const { match } = await api(`/slots/${slotId}/start`, { method: 'POST' });
+      await api(`/matches/${match.id}/declare-winner`, { method: 'POST', body: { winnerSide: btn.dataset.side } });
+      await loadSchedule();
+      toast(`${btn.textContent} won`, 'success', {
+        label: 'Undo',
+        onClick: async () => {
+          await api(`/matches/${match.id}/reopen`, { method: 'POST' });
+          await loadSchedule();
+        },
+      });
+    });
   });
   container.querySelector('#extend-btn').addEventListener('click', async (e) => {
     e.target.disabled = true;
