@@ -277,23 +277,38 @@ async function loadTeams() {
   renderTeams();
 }
 
+function avatarColor(name) {
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${hash} 55% 46%)`;
+}
+
 function renderTeams() {
   const list = document.getElementById('teams-list');
+  document.getElementById('teams-count').textContent = teamsCache.length ? String(teamsCache.length) : '';
   if (teamsCache.length === 0) {
-    list.innerHTML = `<div class="empty-state">No teams yet. Add your first team with its players to start scheduling matches.</div>`;
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <strong>No teams yet</strong>
+        <p>Add your first team with its players, or let us randomize teams from a list of players.</p>
+      </div>`;
     return;
   }
   list.innerHTML = teamsCache
     .map(
       (team) => h`
     <div class="card team-card" data-team-id="${team.id}">
-      <div class="team-card-head">
+      <div class="avatars">
+        ${team.players.slice(0, 3).map((p) => `<span class="avatar" style="background:${avatarColor(p.name)}">${escapeHtml(p.name.trim().charAt(0).toUpperCase())}</span>`).join('') || '<span class="avatar avatar-empty">?</span>'}
+      </div>
+      <div class="team-info">
         <h3>${escapeHtml(team.name)}</h3>
-        <button class="icon-btn-plain" data-delete-team="${team.id}" title="Delete team">✕</button>
+        <p class="muted small">${team.players.length ? `${team.players.length} player${team.players.length > 1 ? 's' : ''} · ${escapeHtml(team.players.map((p) => p.name).join(', '))}` : 'No players added'}</p>
       </div>
-      <div class="chip-row">
-        ${team.players.length ? team.players.map((p) => `<span class="chip">${escapeHtml(p.name)}</span>`).join('') : '<span class="muted small">No players added</span>'}
-      </div>
+      <button class="icon-btn-plain" data-delete-team="${team.id}" title="Delete team" aria-label="Delete team">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>
+      </button>
     </div>`,
     )
     .join('');
