@@ -560,6 +560,19 @@ async function openRandomizeTeamsForm() {
         e.target.disabled = true;
         try {
           const names = Array.from(root.querySelectorAll('.rt-team-name')).map((input) => input.value.trim());
+          // Check everything first so a clash can't leave half the teams saved.
+          const takenNames = new Set(teamsCache.map((t) => t.name.trim().toLowerCase()));
+          const takenRosters = new Set(
+            teamsCache.map((t) => t.players.map((p) => p.name.trim().toLowerCase()).sort().join('|')),
+          );
+          for (let i = 0; i < generatedTeams.length; i++) {
+            const n = (names[i] || teamNameFromPlayers(generatedTeams[i].map((p) => p.name)) || `Team ${i + 1}`).toLowerCase();
+            const roster = generatedTeams[i].map((p) => p.name.trim().toLowerCase()).sort().join('|');
+            if (takenNames.has(n)) throw new Error(`A team named "${names[i] || n}" already exists.`);
+            if (takenRosters.has(roster)) throw new Error('A team with exactly these players already exists.');
+            takenNames.add(n);
+            takenRosters.add(roster);
+          }
           for (let i = 0; i < generatedTeams.length; i++) {
             const teamName = names[i] || teamNameFromPlayers(generatedTeams[i].map((p) => p.name)) || `Team ${i + 1}`;
             await api('/teams', {

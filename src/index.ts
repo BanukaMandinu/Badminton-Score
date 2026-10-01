@@ -7,6 +7,7 @@ import {
   deleteSession,
   deleteTeam,
   extendSessionSchedule,
+  findTeamConflict,
   getFinalSlotForSession,
   listSessions,
   getLatestSession,
@@ -48,6 +49,8 @@ app.get('/players', async (c) => {
 app.post('/teams', async (c) => {
   const body = await c.req.json<{ name: string; playerNames: string[] }>();
   if (!body.name?.trim()) return c.json({ error: 'Team name is required' }, 400);
+  const conflict = await findTeamConflict(c.env.DB, body.name, body.playerNames ?? []);
+  if (conflict) return c.json({ error: conflict }, 409);
   const teamId = await createTeam(c.env.DB, body.name, body.playerNames ?? []);
   return c.json({ teamId });
 });
@@ -56,6 +59,8 @@ app.put('/teams/:id', async (c) => {
   const teamId = Number(c.req.param('id'));
   const body = await c.req.json<{ name: string; playerNames: string[] }>();
   if (!body.name?.trim()) return c.json({ error: 'Team name is required' }, 400);
+  const conflict = await findTeamConflict(c.env.DB, body.name, body.playerNames ?? [], teamId);
+  if (conflict) return c.json({ error: conflict }, 409);
   await updateTeam(c.env.DB, teamId, body.name, body.playerNames ?? []);
   return c.json({ ok: true });
 });

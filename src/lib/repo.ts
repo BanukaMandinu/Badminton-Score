@@ -59,6 +59,31 @@ async function findOrCreatePlayerId(db: D1Database, name: string): Promise<numbe
   return result.meta.last_row_id as number;
 }
 
+/** Returns a human-readable reason if a team with this name, or with exactly
+ * this set of players, already exists (ignoring `excludeTeamId` when editing). */
+export async function findTeamConflict(
+  db: D1Database,
+  name: string,
+  playerNames: string[],
+  excludeTeamId?: number,
+): Promise<string | null> {
+  const teams = (await listTeamsWithPlayers(db)).filter((t) => t.id !== excludeTeamId);
+  const wanted = name.trim().toLowerCase();
+  const sameName = teams.find((t) => t.name.trim().toLowerCase() === wanted);
+  if (sameName) return `A team named "${sameName.name}" already exists.`;
+
+  const key = (names: string[]) =>
+    Array.from(new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean)))
+      .sort()
+      .join('|');
+  const wantedPlayers = key(playerNames);
+  if (wantedPlayers) {
+    const sameRoster = teams.find((t) => key(t.players.map((p) => p.name)) === wantedPlayers);
+    if (sameRoster) return `"${sameRoster.name}" already has exactly these players.`;
+  }
+  return null;
+}
+
 export async function createTeam(db: D1Database, name: string, playerNames: string[]): Promise<number> {
   const teamResult = await db
     .prepare('INSERT INTO teams (name, created_at) VALUES (?, ?)')
